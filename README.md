@@ -55,6 +55,56 @@ TinyClaw is a lightweight multi-provider AI assistant that:
 
 ### Installation
 
+#### Option 1: Quick Install (Recommended)
+
+One-line install with all dependencies bundled:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-install.sh | bash
+```
+
+This automatically:
+- Downloads pre-built bundle (no npm install needed)
+- Installs to `~/.tinyclaw`
+- Creates global `tinyclaw` command
+- Falls back to source install if bundle unavailable
+
+#### Option 2: Manual from Release
+
+Download the latest release bundle:
+
+```bash
+# Download from GitHub releases
+wget https://github.com/jlia0/tinyclaw/releases/latest/download/tinyclaw-bundle.tar.gz
+
+# Extract
+tar -xzf tinyclaw-bundle.tar.gz
+cd tinyclaw
+
+# Install CLI globally
+./scripts/install.sh
+```
+
+#### Option 3: From Source
+
+Clone and build from source:
+
+```bash
+# Clone repository
+git clone https://github.com/jlia0/tinyclaw.git
+cd tinyclaw
+
+# Install dependencies
+npm install
+
+# Install CLI globally
+./scripts/install.sh
+```
+
+#### Option 4: Direct Script (No CLI Install)
+
+Run TinyClaw from its directory without global CLI:
+
 ```bash
 cd /path/to/tinyclaw
 
@@ -171,59 +221,72 @@ You'll get a response! 🤖
 
 ## 📋 Commands
 
+If installed as CLI tool, use `tinyclaw` command. Otherwise use `./tinyclaw.sh`.
+
 ```bash
 # Start TinyClaw
-./tinyclaw.sh start
+tinyclaw start
 
 # Run setup wizard (change channels/model/heartbeat)
-./tinyclaw.sh setup
+tinyclaw setup
 
 # Check status
-./tinyclaw.sh status
+tinyclaw status
 
 # Send manual message
-./tinyclaw.sh send "What's the weather?"
+tinyclaw send "What's the weather?"
 
 # Reset conversation
-./tinyclaw.sh reset
+tinyclaw reset
 
 # Reset channel authentication
-./tinyclaw.sh channels reset whatsapp  # Clear WhatsApp session
-./tinyclaw.sh channels reset discord   # Shows Discord reset instructions
-./tinyclaw.sh channels reset telegram  # Shows Telegram reset instructions
+tinyclaw channels reset whatsapp  # Clear WhatsApp session
+tinyclaw channels reset discord   # Shows Discord reset instructions
+tinyclaw channels reset telegram  # Shows Telegram reset instructions
 
 # Switch AI provider (one-step command)
-./tinyclaw.sh provider                                   # Show current provider and model
-./tinyclaw.sh provider anthropic --model sonnet          # Switch to Anthropic with Sonnet
-./tinyclaw.sh provider openai --model gpt-5.3-codex      # Switch to OpenAI with GPT-5.3 Codex
-./tinyclaw.sh provider openai --model gpt-4o             # Switch to OpenAI with custom model
+tinyclaw provider                                   # Show current provider and model
+tinyclaw provider anthropic --model sonnet          # Switch to Anthropic with Sonnet
+tinyclaw provider openai --model gpt-5.3-codex      # Switch to OpenAI with GPT-5.3 Codex
+tinyclaw provider openai --model gpt-4o             # Switch to OpenAI with custom model
 
 # Or switch provider/model separately
-./tinyclaw.sh provider anthropic    # Switch to Anthropic only
-./tinyclaw.sh model sonnet          # Then switch model
-./tinyclaw.sh model opus            # Switch to Claude Opus
-./tinyclaw.sh model gpt-5.2         # Switch to OpenAI GPT-5.2
+tinyclaw provider anthropic    # Switch to Anthropic only
+tinyclaw model sonnet          # Then switch model
+tinyclaw model opus            # Switch to Claude Opus
+tinyclaw model gpt-5.2         # Switch to OpenAI GPT-5.2
 
 # View logs
-./tinyclaw.sh logs whatsapp   # WhatsApp activity
-./tinyclaw.sh logs discord    # Discord activity
-./tinyclaw.sh logs telegram   # Telegram activity
-./tinyclaw.sh logs queue      # Queue processing
-./tinyclaw.sh logs heartbeat  # Heartbeat checks
+tinyclaw logs whatsapp   # WhatsApp activity
+tinyclaw logs discord    # Discord activity
+tinyclaw logs telegram   # Telegram activity
+tinyclaw logs queue      # Queue processing
+tinyclaw logs heartbeat  # Heartbeat checks
 
 # Attach to tmux
-./tinyclaw.sh attach
+tinyclaw attach
 
 # Restart
-./tinyclaw.sh restart
+tinyclaw restart
 
 # Stop
-./tinyclaw.sh stop
+tinyclaw stop
 ```
+
+### Uninstall CLI
+
+To remove the global CLI installation:
+
+```bash
+cd /path/to/tinyclaw
+./scripts/uninstall.sh
+```
+
+This only removes the CLI symlink. The TinyClaw installation directory remains intact.
 
 ## 🔧 Components
 
-### 1. setup-wizard.sh
+### 1. lib/setup-wizard.sh
 
 - Interactive setup on first run
 - Configures channels (Discord/WhatsApp/Telegram)
@@ -265,7 +328,7 @@ You'll get a response! 🤖
 - Waits indefinitely for response
 - Writes responses to outgoing queue
 
-### 6. heartbeat-cron.sh
+### 6. lib/heartbeat-cron.sh
 
 - Runs every 5 minutes
 - Sends heartbeat via queue
@@ -326,9 +389,15 @@ tinyclaw/
 │   ├── telegram-client.ts   # Telegram I/O
 │   └── queue-processor.ts   # Message processing
 ├── dist/                 # TypeScript build output
-├── setup-wizard.sh       # Interactive setup
-├── tinyclaw.sh           # Main script
-└── heartbeat-cron.sh     # Health checks
+├── lib/                  # Runtime helper scripts
+│   ├── setup-wizard.sh   # Interactive setup (first run)
+│   └── heartbeat-cron.sh # Health checks
+├── scripts/              # Installation & build scripts
+│   ├── install.sh        # CLI installation
+│   ├── uninstall.sh      # CLI uninstallation
+│   ├── bundle.sh         # Create release bundle
+│   └── remote-install.sh # Remote installation
+└── tinyclaw.sh           # Main script
 ```
 
 ## 🔄 Reset Conversation
@@ -641,6 +710,65 @@ command=/path/to/tinyclaw/tinyclaw.sh start
 autostart=true
 autorestart=true
 ```
+
+## 🛠️ Development & Releases
+
+### Creating a Release Bundle
+
+For maintainers creating releases:
+
+```bash
+# Build a distributable bundle with all dependencies
+./scripts/bundle.sh
+```
+
+This creates `tinyclaw-bundle-{version}.tar.gz` with:
+- All source code
+- Pre-installed `node_modules/` (production only)
+- Compiled TypeScript (dist/)
+- All scripts and configurations
+
+Upload this bundle to GitHub Releases, and the remote installer will automatically use it!
+
+### Automated Releases
+
+The project includes a GitHub Actions workflow that automatically:
+1. Builds the bundle when you push a version tag
+2. Creates a GitHub Release
+3. Uploads the bundle as a release asset
+
+To create a new release:
+
+```bash
+# Tag a new version
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions will automatically:
+# - Build the bundle
+# - Create the release
+# - Upload the bundle
+```
+
+### Manual Bundle Testing
+
+Test a bundle locally before releasing:
+
+```bash
+# Create bundle
+./scripts/bundle.sh
+
+# Test installation
+mkdir test-install
+tar -xzf tinyclaw-bundle-*.tar.gz -C test-install --strip-components=1
+cd test-install
+./install.sh
+
+# Test the CLI
+tinyclaw status
+```
+
+The bundle structure maintains the organized directory layout with `scripts/` and `lib/` directories.
 
 ## 🎯 Use Cases
 

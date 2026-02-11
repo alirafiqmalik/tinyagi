@@ -26,7 +26,12 @@ if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use TINYCLAW_HOME if set (for CLI wrapper), otherwise detect from script location
+if [ -n "$TINYCLAW_HOME" ]; then
+    SCRIPT_DIR="$TINYCLAW_HOME"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 TMUX_SESSION="tinyclaw"
 LOG_DIR="$SCRIPT_DIR/.tinyclaw/logs"
 SETTINGS_FILE="$SCRIPT_DIR/.tinyclaw/settings.json"
@@ -167,7 +172,7 @@ start_daemon() {
     if ! load_settings; then
         echo -e "${YELLOW}No configuration found. Running setup wizard...${NC}"
         echo ""
-        "$SCRIPT_DIR/setup-wizard.sh"
+        "$SCRIPT_DIR/lib/setup-wizard.sh"
 
         if ! load_settings; then
             echo -e "${RED}Setup failed or was cancelled${NC}"
@@ -241,7 +246,7 @@ start_daemon() {
     pane_idx=$((pane_idx + 1))
 
     # Heartbeat pane
-    tmux send-keys -t "$TMUX_SESSION:0.$pane_idx" "cd '$SCRIPT_DIR' && ./heartbeat-cron.sh" C-m
+    tmux send-keys -t "$TMUX_SESSION:0.$pane_idx" "cd '$SCRIPT_DIR' && ./lib/heartbeat-cron.sh" C-m
     tmux select-pane -t "$TMUX_SESSION:0.$pane_idx" -T "Heartbeat"
     pane_idx=$((pane_idx + 1))
 
@@ -712,7 +717,7 @@ case "${1:-}" in
         tmux attach -t "$TMUX_SESSION"
         ;;
     setup)
-        "$SCRIPT_DIR/setup-wizard.sh"
+        "$SCRIPT_DIR/lib/setup-wizard.sh"
         ;;
     *)
         local_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
