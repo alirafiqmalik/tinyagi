@@ -18,6 +18,7 @@ const SCRIPT_DIR = path.resolve(__dirname, '..');
 const QUEUE_INCOMING = path.join(SCRIPT_DIR, '.tinyclaw/queue/incoming');
 const QUEUE_OUTGOING = path.join(SCRIPT_DIR, '.tinyclaw/queue/outgoing');
 const LOG_FILE = path.join(SCRIPT_DIR, '.tinyclaw/logs/telegram.log');
+const SETTINGS_FILE = path.join(SCRIPT_DIR, '.tinyclaw/settings.json');
 const FILES_DIR = path.join(SCRIPT_DIR, '.tinyclaw/files');
 
 // Ensure directories exist
@@ -95,6 +96,30 @@ function log(level: string, message: string): void {
     const logMessage = `[${timestamp}] [${level}] ${message}\n`;
     console.log(logMessage.trim());
     fs.appendFileSync(LOG_FILE, logMessage);
+}
+
+// Load teams from settings for /agents command
+function getAgentListText(): string {
+    try {
+        const settingsData = fs.readFileSync(SETTINGS_FILE, 'utf8');
+        const settings = JSON.parse(settingsData);
+        const teams = settings.teams;
+        if (!teams || Object.keys(teams).length === 0) {
+            return 'No teams configured. Using default single-agent mode.\n\nConfigure teams in .tinyclaw/settings.json or run: tinyclaw team add';
+        }
+        let text = 'Available Teams:\n';
+        for (const [id, team] of Object.entries(teams) as [string, any][]) {
+            text += `\n@${id} - ${team.name}`;
+            text += `\n  Provider: ${team.provider}/${team.model}`;
+            text += `\n  Directory: ${team.working_directory}`;
+            if (team.system_prompt) text += `\n  Has custom system prompt`;
+            if (team.prompt_file) text += `\n  Prompt file: ${team.prompt_file}`;
+        }
+        text += '\n\nUsage: Start your message with @team_id to route to a specific team.';
+        return text;
+    } catch {
+        return 'Could not load team configuration.';
+    }
 }
 
 // Split long messages for Telegram's 4096 char limit
@@ -281,6 +306,16 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         const senderId = msg.from ? msg.from.id.toString() : msg.chat.id.toString();
 
         log('INFO', `Message from ${sender}: ${messageText.substring(0, 50)}${downloadedFiles.length > 0 ? ` [+${downloadedFiles.length} file(s)]` : ''}...`);
+
+        // Check for teams list command
+        if (msg.text && msg.text.trim().match(/^[!/]team$/i)) {
+            log('INFO', 'Teams list command received');
+            const agentList = getAgentListText();
+            await bot.sendMessage(msg.chat.id, agentList, {
+                reply_to_message_id: msg.message_id,
+            });
+            return;
+        }
 
         // Check for reset command
         if (messageText.trim().match(/^[!/]reset$/i)) {
