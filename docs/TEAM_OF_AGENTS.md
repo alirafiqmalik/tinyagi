@@ -493,53 +493,16 @@ response = "Here's the diagram [send_file: /path/to/diagram.png]";
 
 ## Troubleshooting
 
-### Team Not Found
+For detailed troubleshooting of team-related issues, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-If you see "Team 'xyz' not found", check:
+**Quick reference:**
 
-1. Team exists in settings: `./tinyclaw.sh team list`
-2. Team ID is lowercase and matches exactly
-3. Settings file is valid JSON: `cat .tinyclaw/settings.json | jq`
-
-### Wrong Team Responding
-
-If messages go to wrong team:
-
-1. Check routing prefix: `@team_id` with space after
-2. Verify team is not deleted
-3. Check logs: `tail -f ~/.tinyclaw/logs/queue.log`
-
-### Conversation Not Resetting
-
-If `/reset` doesn't work:
-
-1. Check reset flag exists: `ls ~/tinyclaw-workspace/{team_id}/reset_flag`
-2. Send a new message to trigger reset
-3. Reset is one-time - next message continues conversation
-
-### CLI Not Found
-
-If team can't execute (error: `command not found`):
-
-1. **Anthropic:** Ensure `claude` CLI is installed and in PATH
-2. **OpenAI:** Ensure `codex` CLI is installed and authenticated
-3. Test manually: `claude --version` or `codex --version`
-
-### Workspace Issues
-
-If teams aren't being created:
-
-1. Check workspace path: `cat .tinyclaw/settings.json | jq '.workspace.path'`
-2. Verify workspace exists: `ls ~/tinyclaw-workspace/`
-3. Check permissions: `ls -la ~/tinyclaw-workspace/`
-
-### Templates Not Copying
-
-If new teams don't have `.claude/` or other files:
-
-1. Check templates exist: `ls -la ~/.tinyclaw/`
-2. Verify template files: `ls ~/.tinyclaw/{.claude,heartbeat.md,AGENTS.md}`
-3. Run setup again to create templates: `./tinyclaw.sh setup`
+- **Team not found** → Check: `tinyclaw team list`
+- **Wrong team responding** → Verify routing: `@team_id message` (with space)
+- **Conversation not resetting** → Send message after: `tinyclaw team reset <id>`
+- **CLI not found** → Install Claude Code or Codex CLI
+- **Workspace issues** → Check: `cat .tinyclaw/settings.json | jq '.workspace'`
+- **Templates not copying** → Run: `tinyclaw setup`
 
 ## Implementation Details
 
