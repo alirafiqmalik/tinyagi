@@ -63,8 +63,7 @@ interface Settings {
             model?: string;
         };
     };
-    teams?: Record<string, AgentConfig>;
-    agents?: Record<string, AgentConfig>; // Legacy fallback
+    agents?: Record<string, AgentConfig>;
     monitoring?: {
         heartbeat_interval?: number;
     };
@@ -109,8 +108,8 @@ function getDefaultAgentFromModels(settings: Settings): AgentConfig {
     const workspacePath = settings?.workspace?.path || path.join(require('os').homedir(), 'tinyclaw-workspace');
     const defaultAgentDir = path.join(workspacePath, 'default');
 
-    // Ensure default team directory exists with copied configs
-    ensureTeamDirectory(defaultAgentDir);
+    // Ensure default agent directory exists with copied configs
+    ensureAgentDirectory(defaultAgentDir);
 
     return {
         name: 'Default',
@@ -140,52 +139,47 @@ function copyDirSync(src: string, dest: string): void {
 }
 
 /**
- * Ensure team directory exists with template files copied from TINYCLAW_HOME.
+ * Ensure agent directory exists with template files copied from TINYCLAW_HOME.
  * Creates directory if it doesn't exist and copies .claude/, heartbeat.md, and AGENTS.md.
  */
-function ensureTeamDirectory(teamDir: string): void {
-    if (fs.existsSync(teamDir)) {
+function ensureAgentDirectory(agentDir: string): void {
+    if (fs.existsSync(agentDir)) {
         return; // Directory already exists
     }
 
-    fs.mkdirSync(teamDir, { recursive: true });
+    fs.mkdirSync(agentDir, { recursive: true });
 
     // Copy .claude directory
     const sourceClaudeDir = path.join(TINYCLAW_HOME, '.claude');
-    const targetClaudeDir = path.join(teamDir, '.claude');
+    const targetClaudeDir = path.join(agentDir, '.claude');
     if (fs.existsSync(sourceClaudeDir)) {
         copyDirSync(sourceClaudeDir, targetClaudeDir);
     }
 
     // Copy heartbeat.md
     const sourceHeartbeat = path.join(TINYCLAW_HOME, 'heartbeat.md');
-    const targetHeartbeat = path.join(teamDir, 'heartbeat.md');
+    const targetHeartbeat = path.join(agentDir, 'heartbeat.md');
     if (fs.existsSync(sourceHeartbeat)) {
         fs.copyFileSync(sourceHeartbeat, targetHeartbeat);
     }
 
     // Copy AGENTS.md
     const sourceAgents = path.join(TINYCLAW_HOME, 'AGENTS.md');
-    const targetAgents = path.join(teamDir, 'AGENTS.md');
+    const targetAgents = path.join(agentDir, 'AGENTS.md');
     if (fs.existsSync(sourceAgents)) {
         fs.copyFileSync(sourceAgents, targetAgents);
     }
 }
 
 /**
- * Get all configured teams. Falls back to a single "default" team
- * derived from the legacy models section if no teams are configured.
+ * Get all configured agents. Falls back to a single "default" agent
+ * derived from the legacy models section if no agents are configured.
  */
 function getAgents(settings: Settings): Record<string, AgentConfig> {
-    // Check for teams first
-    if (settings.teams && Object.keys(settings.teams).length > 0) {
-        return settings.teams;
-    }
-    // Backwards compatibility: check legacy "agents" field
     if (settings.agents && Object.keys(settings.agents).length > 0) {
         return settings.agents;
     }
-    // Fall back to default team from models section
+    // Fall back to default agent from models section
     return { default: getDefaultAgentFromModels(settings) };
 }
 
@@ -204,7 +198,7 @@ function resolveCodexModel(model: string): string {
 }
 
 /**
- * Get the reset flag path for a specific team.
+ * Get the reset flag path for a specific agent.
  */
 function getAgentResetFlag(agentId: string, workspacePath: string): string {
     return path.join(workspacePath, agentId, 'reset_flag');
@@ -212,42 +206,42 @@ function getAgentResetFlag(agentId: string, workspacePath: string): string {
 
 
 /**
- * Detect if message mentions multiple teams (easter egg for future feature)
+ * Detect if message mentions multiple agents (easter egg for future feature)
  */
-function detectMultipleTeams(message: string, agents: Record<string, AgentConfig>): string[] {
+function detectMultipleAgents(message: string, agents: Record<string, AgentConfig>): string[] {
     const mentions = message.match(/@(\S+)/g) || [];
-    const validTeams: string[] = [];
+    const validAgents: string[] = [];
 
     for (const mention of mentions) {
-        const teamId = mention.slice(1).toLowerCase();
-        if (agents[teamId]) {
-            validTeams.push(teamId);
+        const agentId = mention.slice(1).toLowerCase();
+        if (agents[agentId]) {
+            validAgents.push(agentId);
         }
     }
 
-    return validTeams;
+    return validAgents;
 }
 
 /**
  * Parse @agent_id prefix from a message.
  * Returns { agentId, message } where message has the prefix stripped.
- * Returns { agentId: 'error', message: '...' } if multiple teams detected.
+ * Returns { agentId: 'error', message: '...' } if multiple agents detected.
  */
 function parseAgentRouting(rawMessage: string, agents: Record<string, AgentConfig>): { agentId: string; message: string } {
-    // Easter egg: Check for multiple team mentions
-    const mentionedTeams = detectMultipleTeams(rawMessage, agents);
-    if (mentionedTeams.length > 1) {
-        const teamList = mentionedTeams.map(t => `@${t}`).join(', ');
+    // Easter egg: Check for multiple agent mentions
+    const mentionedAgents = detectMultipleAgents(rawMessage, agents);
+    if (mentionedAgents.length > 1) {
+        const agentList = mentionedAgents.map(t => `@${t}`).join(', ');
         return {
             agentId: 'error',
-            message: `🚀 **Team-to-Team Collaboration - Coming Soon!**\n\n` +
-                     `You mentioned multiple teams: ${teamList}\n\n` +
-                     `Right now, I can only route to one team at a time. But we're working on something cool:\n\n` +
-                     `✨ **Multi-Team Coordination** - Teams will be able to collaborate on complex tasks!\n` +
-                     `✨ **Smart Routing** - Send instructions to multiple teams at once!\n` +
-                     `✨ **Team Handoffs** - One team can delegate to another!\n\n` +
-                     `For now, please send separate messages to each team:\n` +
-                     mentionedTeams.map(t => `• \`@${t} [your message]\``).join('\n') + '\n\n' +
+            message: `🚀 **Agent-to-Agent Collaboration - Coming Soon!**\n\n` +
+                     `You mentioned multiple agents: ${agentList}\n\n` +
+                     `Right now, I can only route to one agent at a time. But we're working on something cool:\n\n` +
+                     `✨ **Multi-Agent Coordination** - Agents will be able to collaborate on complex tasks!\n` +
+                     `✨ **Smart Routing** - Send instructions to multiple agents at once!\n` +
+                     `✨ **Agent Handoffs** - One agent can delegate to another!\n\n` +
+                     `For now, please send separate messages to each agent:\n` +
+                     mentionedAgents.map(t => `• \`@${t} [your message]\``).join('\n') + '\n\n' +
                      `_Stay tuned for updates! 🎉_`
         };
     }
@@ -378,9 +372,9 @@ async function processMessage(messageFile: string): Promise<void> {
             message = routing.message;
         }
 
-        // Easter egg: Handle multiple team mentions
+        // Easter egg: Handle multiple agent mentions
         if (agentId === 'error') {
-            log('INFO', `Multiple teams detected, sending easter egg message`);
+            log('INFO', `Multiple agents detected, sending easter egg message`);
 
             // Send error message directly as response
             const responseFile = path.join(QUEUE_OUTGOING, path.basename(processingFile));
@@ -411,24 +405,24 @@ async function processMessage(messageFile: string): Promise<void> {
         }
 
         const agent = agents[agentId];
-        log('INFO', `Routing to team: ${agent.name} (${agentId}) [${agent.provider}/${agent.model}]`);
+        log('INFO', `Routing to agent: ${agent.name} (${agentId}) [${agent.provider}/${agent.model}]`);
 
-        // Ensure team directory exists with config files
-        const teamDir = path.join(workspacePath, agentId);
-        const isNewTeam = !fs.existsSync(teamDir);
-        ensureTeamDirectory(teamDir);
-        if (isNewTeam) {
-            log('INFO', `Initialized team directory with config files: ${teamDir}`);
+        // Ensure agent directory exists with config files
+        const agentDir = path.join(workspacePath, agentId);
+        const isNewAgent = !fs.existsSync(agentDir);
+        ensureAgentDirectory(agentDir);
+        if (isNewAgent) {
+            log('INFO', `Initialized agent directory with config files: ${agentDir}`);
         }
 
-        // Resolve working directory - use team directory
+        // Resolve working directory - use agent directory
         const workingDir = agent.working_directory
             ? (path.isAbsolute(agent.working_directory)
                 ? agent.working_directory
                 : path.join(workspacePath, agent.working_directory))
-            : teamDir;
+            : agentDir;
 
-        // Check for reset (per-team or global)
+        // Check for reset (per-agent or global)
         const agentResetFlag = getAgentResetFlag(agentId, workspacePath);
         const shouldReset = fs.existsSync(RESET_FLAG) || fs.existsSync(agentResetFlag);
 
@@ -575,13 +569,13 @@ interface QueueFile {
     time: number;
 }
 
-// Per-team processing chains - ensures messages to same team are sequential
-const teamProcessingChains = new Map<string, Promise<void>>();
+// Per-agent processing chains - ensures messages to same agent are sequential
+const agentProcessingChains = new Map<string, Promise<void>>();
 
 /**
- * Peek at a message file to determine which team it's routed to
+ * Peek at a message file to determine which agent it's routed to
  */
-function peekTeamId(filePath: string): string {
+function peekAgentId(filePath: string): string {
     try {
         const messageData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         const settings = getSettings();
@@ -592,7 +586,7 @@ function peekTeamId(filePath: string): string {
             return messageData.agent;
         }
 
-        // Parse @team_id prefix
+        // Parse @agent_id prefix
         const routing = parseAgentRouting(messageData.message || '', agents);
         return routing.agentId || 'default';
     } catch {
@@ -616,28 +610,28 @@ async function processQueue(): Promise<void> {
         if (files.length > 0) {
             log('DEBUG', `Found ${files.length} message(s) in queue`);
 
-            // Process messages in parallel by team (sequential within each team)
+            // Process messages in parallel by agent (sequential within each agent)
             for (const file of files) {
-                // Determine target team
-                const teamId = peekTeamId(file.path);
+                // Determine target agent
+                const agentId = peekAgentId(file.path);
 
-                // Get or create promise chain for this team
-                const currentChain = teamProcessingChains.get(teamId) || Promise.resolve();
+                // Get or create promise chain for this agent
+                const currentChain = agentProcessingChains.get(agentId) || Promise.resolve();
 
-                // Chain this message to the team's promise
+                // Chain this message to the agent's promise
                 const newChain = currentChain
                     .then(() => processMessage(file.path))
                     .catch(error => {
-                        log('ERROR', `Error processing message for team ${teamId}: ${error.message}`);
+                        log('ERROR', `Error processing message for agent ${agentId}: ${error.message}`);
                     });
 
                 // Update the chain
-                teamProcessingChains.set(teamId, newChain);
+                agentProcessingChains.set(agentId, newChain);
 
                 // Clean up completed chains to avoid memory leaks
                 newChain.finally(() => {
-                    if (teamProcessingChains.get(teamId) === newChain) {
-                        teamProcessingChains.delete(teamId);
+                    if (agentProcessingChains.get(agentId) === newChain) {
+                        agentProcessingChains.delete(agentId);
                     }
                 });
             }

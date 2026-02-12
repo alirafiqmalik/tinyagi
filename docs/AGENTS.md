@@ -1,17 +1,17 @@
-# Team of Teams
+# Agents
 
-TinyClaw supports running multiple AI teams simultaneously, each with its own isolated workspace, configuration, and conversation state. This allows you to have specialized teams for different tasks while maintaining complete isolation.
+TinyClaw supports running multiple AI agents simultaneously, each with its own isolated workspace, configuration, and conversation state. This allows you to have specialized agents for different tasks while maintaining complete isolation.
 
 ## Overview
 
-The team management feature enables you to:
+The agent management feature enables you to:
 
-- **Run multiple teams** with different models, providers, and configurations
-- **Route messages** to specific teams using `@team_id` syntax
-- **Isolate conversations** - each team has its own workspace directory and conversation history
-- **Specialize teams** - give each team a custom system prompt and configuration
-- **Switch providers** - mix Anthropic (Claude) and OpenAI (Codex) teams
-- **Customize workspaces** - organize teams in your own workspace directory
+- **Run multiple agents** with different models, providers, and configurations
+- **Route messages** to specific agents using `@agent_id` syntax
+- **Isolate conversations** - each agent has its own workspace directory and conversation history
+- **Specialize agents** - give each agent a custom system prompt and configuration
+- **Switch providers** - mix Anthropic (Claude) and OpenAI (Codex) agents
+- **Customize workspaces** - organize agents in your own workspace directory
 
 ## Architecture
 
@@ -25,14 +25,14 @@ The team management feature enables you to:
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                   Queue Processor                            │
-│  • Parses @team_id routing prefix                           │
-│  • Falls back to default team if no prefix                  │
-│  • Loads team configuration from settings.json              │
+│  • Parses @agent_id routing prefix                          │
+│  • Falls back to default agent if no prefix                 │
+│  • Loads agent configuration from settings.json             │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                    Team Router                               │
+│                    Agent Router                              │
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │ @coder       │  │ @writer      │  │ @assistant   │     │
@@ -64,19 +64,19 @@ When a message arrives, the queue processor parses it for routing:
 
 ```typescript
 // User sends: "@coder fix the authentication bug"
-const routing = parseTeamRouting(rawMessage, teams);
-// Result: { teamId: "coder", message: "fix the authentication bug" }
+const routing = parseAgentRouting(rawMessage, agents);
+// Result: { agentId: "coder", message: "fix the authentication bug" }
 ```
 
 **Routing Rules:**
-- Message starts with `@team_id` → Routes to that team
-- No prefix → Routes to default team (user-named during setup)
-- Team not found → Falls back to default team
-- No teams configured → Uses legacy single-team mode
+- Message starts with `@agent_id` → Routes to that agent
+- No prefix → Routes to default agent (user-named during setup)
+- Agent not found → Falls back to default agent
+- No agents configured → Uses legacy single-agent mode
 
-### 2. Team Configuration
+### 2. Agent Configuration
 
-Each team has its own configuration in `.tinyclaw/settings.json`:
+Each agent has its own configuration in `.tinyclaw/settings.json`:
 
 ```json
 {
@@ -84,7 +84,7 @@ Each team has its own configuration in `.tinyclaw/settings.json`:
     "path": "/Users/me/tinyclaw-workspace",
     "name": "tinyclaw-workspace"
   },
-  "teams": {
+  "agents": {
     "coder": {
       "name": "Code Assistant",
       "provider": "anthropic",
@@ -109,31 +109,31 @@ Each team has its own configuration in `.tinyclaw/settings.json`:
 }
 ```
 
-**Note:** The `working_directory` is automatically set to `<workspace>/<team_id>/` when creating teams via `tinyclaw.sh team add`.
+**Note:** The `working_directory` is automatically set to `<workspace>/<agent_id>/` when creating agents via `tinyclaw.sh agent add`.
 
-### 3. Team Isolation
+### 3. Agent Isolation
 
-Each team has its own isolated workspace directory with complete copies of configuration files:
+Each agent has its own isolated workspace directory with complete copies of configuration files:
 
-**Team Workspaces:**
+**Agent Workspaces:**
 ```
 ~/tinyclaw-workspace/          # Or custom workspace name
 ├── coder/
-│   ├── .claude/               # Team's own Claude config
+│   ├── .claude/               # Agent's own Claude config
 │   │   ├── settings.json
 │   │   ├── settings.local.json
 │   │   └── hooks/
 │   │       ├── session-start.sh
 │   │       └── log-activity.sh
-│   ├── heartbeat.md           # Team-specific heartbeat
-│   ├── AGENTS.md              # Team-specific docs
+│   ├── heartbeat.md           # Agent-specific heartbeat
+│   ├── AGENTS.md              # Agent-specific docs
 │   └── reset_flag             # Reset signal
 ├── writer/
 │   ├── .claude/
 │   ├── heartbeat.md
 │   ├── AGENTS.md
 │   └── reset_flag
-└── assistant/                 # User-named default team
+└── assistant/                 # User-named default agent
     ├── .claude/
     ├── heartbeat.md
     ├── AGENTS.md
@@ -146,23 +146,23 @@ Templates and shared resources are stored in `~/.tinyclaw/`:
 
 ```
 ~/.tinyclaw/
-├── .claude/           # Template: Copied to each new team
-├── heartbeat.md       # Template: Copied to each new team
-├── AGENTS.md          # Template: Copied to each new team
+├── .claude/           # Template: Copied to each new agent
+├── heartbeat.md       # Template: Copied to each new agent
+├── AGENTS.md          # Template: Copied to each new agent
 ├── channels/          # SHARED: Channel state (QR codes, ready flags)
 ├── files/             # SHARED: Uploaded files from all channels
-├── logs/              # SHARED: Log files for all teams and channels
+├── logs/              # SHARED: Log files for all agents and channels
 └── queue/             # SHARED: Message queue (incoming/outgoing/processing)
 ```
 
 **How it works:**
-- Each team runs CLI commands in its own workspace directory (`~/workspace/team_id/`)
-- Each team gets its own copy of `.claude/`, `heartbeat.md`, and `AGENTS.md` from templates
-- Teams can customize their settings, hooks, and documentation independently
-- Conversation history is isolated per team (managed by Claude/Codex CLI)
-- Reset flags allow resetting individual team conversations
-- File operations happen in the team's directory
-- Templates stored in `~/.tinyclaw/` are copied when creating new teams
+- Each agent runs CLI commands in its own workspace directory (`~/workspace/agent_id/`)
+- Each agent gets its own copy of `.claude/`, `heartbeat.md`, and `AGENTS.md` from templates
+- Agents can customize their settings, hooks, and documentation independently
+- Conversation history is isolated per agent (managed by Claude/Codex CLI)
+- Reset flags allow resetting individual agent conversations
+- File operations happen in the agent's directory
+- Templates stored in `~/.tinyclaw/` are copied when creating new agents
 - Uploaded files, message queues, and logs are shared (common dependencies)
 
 ### 4. Provider Execution
@@ -171,7 +171,7 @@ The queue processor calls the appropriate CLI based on provider:
 
 **Anthropic (Claude):**
 ```bash
-cd "$team_working_directory"  # e.g., ~/tinyclaw-workspace/coder/
+cd "$agent_working_directory"  # e.g., ~/tinyclaw-workspace/coder/
 claude --dangerously-skip-permissions \
   --model claude-sonnet-4-5 \
   --system-prompt "Your custom prompt..." \
@@ -181,7 +181,7 @@ claude --dangerously-skip-permissions \
 
 **OpenAI (Codex):**
 ```bash
-cd "$team_working_directory"  # e.g., ~/tinyclaw-workspace/coder/
+cd "$agent_working_directory"  # e.g., ~/tinyclaw-workspace/coder/
 codex exec resume --last \
   --model gpt-5.3-codex \
   --skip-git-repo-check \
@@ -196,29 +196,29 @@ codex exec resume --last \
 
 During first-time setup (`./tinyclaw.sh setup`), you'll be prompted for:
 
-1. **Workspace name** - Where to store team directories
+1. **Workspace name** - Where to store agent directories
    - Default: `tinyclaw-workspace`
    - Creates: `~/tinyclaw-workspace/`
 
-2. **Default team name** - Name for your main assistant
+2. **Default agent name** - Name for your main assistant
    - Default: `assistant`
-   - This replaces the hardcoded "default" team
+   - This replaces the hardcoded "default" agent
 
-### Adding Teams
+### Adding Agents
 
 **Interactive CLI:**
 ```bash
-./tinyclaw.sh team add
+./tinyclaw.sh agent add
 ```
 
 This walks you through:
-1. Team ID (e.g., `coder`)
+1. Agent ID (e.g., `coder`)
 2. Display name (e.g., `Code Assistant`)
 3. Provider (Anthropic or OpenAI)
 4. Model selection
 5. Optional system prompt
 
-**Working directory is automatically set to:** `<workspace>/<team_id>/`
+**Working directory is automatically set to:** `<workspace>/<agent_id>/`
 
 **Manual Configuration:**
 
@@ -230,7 +230,7 @@ Edit `.tinyclaw/settings.json`:
     "path": "/Users/me/tinyclaw-workspace",
     "name": "tinyclaw-workspace"
   },
-  "teams": {
+  "agents": {
     "researcher": {
       "name": "Research Assistant",
       "provider": "anthropic",
@@ -242,25 +242,25 @@ Edit `.tinyclaw/settings.json`:
 }
 ```
 
-### Team Fields
+### Agent Fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Human-readable display name |
 | `provider` | Yes | `anthropic` or `openai` |
 | `model` | Yes | Model identifier (e.g., `sonnet`, `opus`, `gpt-5.3-codex`) |
-| `working_directory` | Yes | Directory where team operates (auto-set to `<workspace>/<team_id>/`) |
+| `working_directory` | Yes | Directory where agent operates (auto-set to `<workspace>/<agent_id>/`) |
 | `system_prompt` | No | Inline system prompt text |
 | `prompt_file` | No | Path to file containing system prompt |
 
 **Note:**
 - If both `prompt_file` and `system_prompt` are provided, `prompt_file` takes precedence
-- The `working_directory` is automatically set to `<workspace>/<team_id>/` when creating teams
-- Each team gets its own isolated directory with copies of templates from `~/.tinyclaw/`
+- The `working_directory` is automatically set to `<workspace>/<agent_id>/` when creating agents
+- Each agent gets its own isolated directory with copies of templates from `~/.tinyclaw/`
 
 ## Usage
 
-### Routing Messages to Teams
+### Routing Messages to Agents
 
 **In any messaging channel** (Discord, Telegram, WhatsApp):
 
@@ -271,25 +271,24 @@ Edit `.tinyclaw/settings.json`:
 
 @researcher find papers on transformer architectures
 
-help me with this (goes to default team - "assistant" by default)
+help me with this (goes to default agent - "assistant" by default)
 ```
 
-### Listing Teams
+### Listing Agents
 
 **From chat:**
 ```
 /agents
 ```
-(Note: Command shows "agents" but lists teams - backwards compatible)
 
 **From CLI:**
 ```bash
-./tinyclaw.sh team list
+./tinyclaw.sh agent list
 ```
 
 **Output:**
 ```
-Configured Teams
+Configured Agents
 ==================
 
   @coder - Code Assistant
@@ -306,16 +305,16 @@ Configured Teams
     Directory: /Users/me/tinyclaw-workspace/assistant
 ```
 
-### Managing Teams
+### Managing Agents
 
-**Show team details:**
+**Show agent details:**
 ```bash
-./tinyclaw.sh team show coder
+./tinyclaw.sh agent show coder
 ```
 
-**Reset team conversation:**
+**Reset agent conversation:**
 ```bash
-./tinyclaw.sh team reset coder
+./tinyclaw.sh agent reset coder
 ```
 
 From chat:
@@ -323,23 +322,23 @@ From chat:
 @coder /reset
 ```
 
-**Remove team:**
+**Remove agent:**
 ```bash
-./tinyclaw.sh team remove coder
+./tinyclaw.sh agent remove coder
 ```
 
 ## Use Cases
 
 ### Specialized Codebases
 
-Have different teams for different projects:
+Have different agents for different projects:
 
 ```json
 {
   "workspace": {
     "path": "/Users/me/my-workspace"
   },
-  "teams": {
+  "agents": {
     "frontend": {
       "working_directory": "/Users/me/my-workspace/frontend",
       "system_prompt": "You are a React and TypeScript expert..."
@@ -359,13 +358,13 @@ Usage:
 @backend optimize the database queries in user service
 ```
 
-### Role-Based Teams
+### Role-Based Agents
 
-Assign different roles to teams:
+Assign different roles to agents:
 
 ```json
 {
-  "teams": {
+  "agents": {
     "reviewer": {
       "system_prompt": "You are a code reviewer. Focus on security, performance, and best practices."
     },
@@ -386,7 +385,7 @@ Use different AI providers for different tasks:
 
 ```json
 {
-  "teams": {
+  "agents": {
     "quick": {
       "provider": "anthropic",
       "model": "sonnet",
@@ -408,23 +407,23 @@ Use different AI providers for different tasks:
 
 ## Advanced Features
 
-### Dynamic Team Routing
+### Dynamic Agent Routing
 
-You can pre-route messages from channel clients by setting the `agent` field (name kept for backwards compatibility):
+You can pre-route messages from channel clients by setting the `agent` field:
 
 ```typescript
 // In channel client (discord-client.ts, etc.)
 const queueData: QueueData = {
   channel: 'discord',
   message: userMessage,
-  agent: 'coder',  // Pre-route to specific team
+  agent: 'coder',  // Pre-route to specific agent
   // ...
 };
 ```
 
 ### Fallback Behavior
 
-If no teams are configured, TinyClaw automatically creates a default team using the legacy `models` section:
+If no agents are configured, TinyClaw automatically creates a default agent using the legacy `models` section:
 
 ```json
 {
@@ -443,8 +442,8 @@ This ensures backward compatibility with older configurations.
 
 Two types of reset flags:
 
-1. **Global reset:** `~/.tinyclaw/reset_flag` - resets all teams
-2. **Per-team reset:** `<workspace>/<team_id>/reset_flag` - resets specific team
+1. **Global reset:** `~/.tinyclaw/reset_flag` - resets all agents
+2. **Per-agent reset:** `<workspace>/<agent_id>/reset_flag` - resets specific agent
 
 Both are automatically cleaned up after use.
 
@@ -473,33 +472,33 @@ Or even use cloud-synced directories:
 
 ## File Handling
 
-Files uploaded through messaging channels are automatically available to all teams:
+Files uploaded through messaging channels are automatically available to all agents:
 
 ```
 User uploads image.png via Telegram
 → Saved to ~/.tinyclaw/files/telegram_123456_image.png
 → Message includes: [file: /path/to/image.png]
-→ Routed to team
-→ Team can read/process the file
+→ Routed to agent
+→ Agent can read/process the file
 ```
 
-Teams can also send files back:
+Agents can also send files back:
 
 ```typescript
-// Team response includes:
+// Agent response includes:
 response = "Here's the diagram [send_file: /path/to/diagram.png]";
 // File is extracted and sent back through channel
 ```
 
 ## Troubleshooting
 
-For detailed troubleshooting of team-related issues, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+For detailed troubleshooting of agent-related issues, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 **Quick reference:**
 
-- **Team not found** → Check: `tinyclaw team list`
-- **Wrong team responding** → Verify routing: `@team_id message` (with space)
-- **Conversation not resetting** → Send message after: `tinyclaw team reset <id>`
+- **Agent not found** → Check: `tinyclaw agent list`
+- **Wrong agent responding** → Verify routing: `@agent_id message` (with space)
+- **Conversation not resetting** → Send message after: `tinyclaw agent reset <id>`
 - **CLI not found** → Install Claude Code or Codex CLI
 - **Workspace issues** → Check: `cat .tinyclaw/settings.json | jq '.workspace'`
 - **Templates not copying** → Run: `tinyclaw setup`
@@ -510,42 +509,42 @@ For detailed troubleshooting of team-related issues, see [TROUBLESHOOTING.md](TR
 
 **Queue Processor** (`src/queue-processor.ts`):
 - `getSettings()` - Loads settings from JSON
-- `getAgents()` - Returns team configurations (checks `.teams` then `.agents`)
-- `parseTeamRouting()` - Parses @team_id prefix
+- `getAgents()` - Returns agent configurations (checks `.agents`)
+- `parseAgentRouting()` - Parses @agent_id prefix
 - `processMessage()` - Main routing and execution logic
 
 **Message Interfaces:**
 ```typescript
 interface MessageData {
-  agent?: string;      // Pre-routed team ID (field name kept for backwards compat)
+  agent?: string;      // Pre-routed agent ID
   files?: string[];    // Uploaded file paths
   // ...
 }
 
 interface ResponseData {
-  agent?: string;      // Which team handled this
+  agent?: string;      // Which agent handled this
   files?: string[];    // Files to send back
   // ...
 }
 ```
 
-### Team Directory Structure
+### Agent Directory Structure
 
 **Templates:**
 ```
 ~/.tinyclaw/
-├── .claude/           # Copied to new teams
-├── heartbeat.md       # Copied to new teams
-└── AGENTS.md          # Copied to new teams
+├── .claude/           # Copied to new agents
+├── heartbeat.md       # Copied to new agents
+└── AGENTS.md          # Copied to new agents
 ```
 
-**Team State:**
+**Agent State:**
 ```
 <workspace>/
-└── {team_id}/
-    ├── .claude/       # Team's own config
-    ├── heartbeat.md   # Team's own monitoring
-    ├── AGENTS.md      # Team's own docs
+└── {agent_id}/
+    ├── .claude/       # Agent's own config
+    ├── heartbeat.md   # Agent's own monitoring
+    ├── AGENTS.md      # Agent's own docs
     └── reset_flag     # Touch to reset conversation
 ```
 
@@ -553,19 +552,19 @@ State is managed by the CLI itself (claude or codex) through the `-c` flag and w
 
 ## Future Enhancements
 
-Potential features for team management:
+Potential features for agent management:
 
-- **Team delegation:** Teams can call other teams
-- **Shared context:** Optional shared memory between teams
-- **Team scheduling:** Time-based or event-based team activation
-- **Team groups:** Organize teams into hierarchies
-- **Web dashboard:** Visual team management and monitoring
-- **Team analytics:** Track usage, performance per team
-- **Workspace templates:** Pre-configured team workspaces for common use cases
-- **Team migration:** Export/import team configurations
+- **Agent delegation:** Agents can call other agents
+- **Shared context:** Optional shared memory between agents
+- **Agent scheduling:** Time-based or event-based agent activation
+- **Agent groups:** Organize agents into hierarchies
+- **Web dashboard:** Visual agent management and monitoring
+- **Agent analytics:** Track usage, performance per agent
+- **Workspace templates:** Pre-configured agent workspaces for common use cases
+- **Agent migration:** Export/import agent configurations
 
 ## See Also
 
 - [README.md](../README.md) - Main project documentation
 - Setup wizard: `./tinyclaw.sh setup`
-- Team CLI: `./tinyclaw.sh team --help`
+- Agent CLI: `./tinyclaw.sh agent --help`

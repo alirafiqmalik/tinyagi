@@ -154,7 +154,7 @@ echo -e "${GREEN}✓ Heartbeat interval: ${HEARTBEAT_INTERVAL}s${NC}"
 echo ""
 
 # Workspace configuration
-echo "Workspace name (where team directories will be stored)?"
+echo "Workspace name (where agent directories will be stored)?"
 echo -e "${YELLOW}(Creates ~/your-workspace-name/)${NC}"
 echo ""
 read -rp "Workspace name [default: tinyclaw-workspace]: " WORKSPACE_INPUT
@@ -165,58 +165,58 @@ WORKSPACE_PATH="$HOME/$WORKSPACE_NAME"
 echo -e "${GREEN}✓ Workspace: $WORKSPACE_PATH${NC}"
 echo ""
 
-# Default team name
-echo "Name your default team?"
+# Default agent name
+echo "Name your default agent?"
 echo -e "${YELLOW}(The main AI assistant you'll interact with)${NC}"
 echo ""
-read -rp "Default team name [default: assistant]: " DEFAULT_TEAM_INPUT
-DEFAULT_TEAM_NAME=${DEFAULT_TEAM_INPUT:-assistant}
-# Clean team name
-DEFAULT_TEAM_NAME=$(echo "$DEFAULT_TEAM_NAME" | tr ' ' '-' | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
-echo -e "${GREEN}✓ Default team: $DEFAULT_TEAM_NAME${NC}"
+read -rp "Default agent name [default: assistant]: " DEFAULT_AGENT_INPUT
+DEFAULT_AGENT_NAME=${DEFAULT_AGENT_INPUT:-assistant}
+# Clean agent name
+DEFAULT_AGENT_NAME=$(echo "$DEFAULT_AGENT_NAME" | tr ' ' '-' | tr -cd 'a-zA-Z0-9_-' | tr '[:upper:]' '[:lower:]')
+echo -e "${GREEN}✓ Default agent: $DEFAULT_AGENT_NAME${NC}"
 echo ""
 
-# --- Team of Agents (optional) ---
+# --- Additional Agents (optional) ---
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  Team of Agents (Optional)${NC}"
+echo -e "${GREEN}  Additional Agents (Optional)${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "You can set up multiple agents with different roles, models, and working directories."
-echo "Users route messages with '@team_id message' in chat."
+echo "Users route messages with '@agent_id message' in chat."
 echo ""
-read -rp "Set up additional teams? [y/N]: " SETUP_TEAMS
+read -rp "Set up additional agents? [y/N]: " SETUP_AGENTS
 
-TEAMS_JSON=""
-# Always create the default team
-DEFAULT_TEAM_DIR="$WORKSPACE_PATH/$DEFAULT_TEAM_NAME"
-# Capitalize first letter of team name (proper bash method)
-DEFAULT_TEAM_DISPLAY="$(tr '[:lower:]' '[:upper:]' <<< "${DEFAULT_TEAM_NAME:0:1}")${DEFAULT_TEAM_NAME:1}"
-TEAMS_JSON='"teams": {'
-TEAMS_JSON="$TEAMS_JSON \"$DEFAULT_TEAM_NAME\": { \"name\": \"$DEFAULT_TEAM_DISPLAY\", \"provider\": \"$PROVIDER\", \"model\": \"$MODEL\", \"working_directory\": \"$DEFAULT_TEAM_DIR\" }"
+AGENTS_JSON=""
+# Always create the default agent
+DEFAULT_AGENT_DIR="$WORKSPACE_PATH/$DEFAULT_AGENT_NAME"
+# Capitalize first letter of agent name (proper bash method)
+DEFAULT_AGENT_DISPLAY="$(tr '[:lower:]' '[:upper:]' <<< "${DEFAULT_AGENT_NAME:0:1}")${DEFAULT_AGENT_NAME:1}"
+AGENTS_JSON='"agents": {'
+AGENTS_JSON="$AGENTS_JSON \"$DEFAULT_AGENT_NAME\": { \"name\": \"$DEFAULT_AGENT_DISPLAY\", \"provider\": \"$PROVIDER\", \"model\": \"$MODEL\", \"working_directory\": \"$DEFAULT_AGENT_DIR\" }"
 
-ADDITIONAL_TEAMS=()  # Track additional team IDs for directory creation
+ADDITIONAL_AGENTS=()  # Track additional agent IDs for directory creation
 
-if [[ "$SETUP_TEAMS" =~ ^[yY] ]]; then
+if [[ "$SETUP_AGENTS" =~ ^[yY] ]]; then
 
-    # Add more teams
-    ADDING_TEAMS=true
-    while [ "$ADDING_TEAMS" = true ]; do
+    # Add more agents
+    ADDING_AGENTS=true
+    while [ "$ADDING_AGENTS" = true ]; do
         echo ""
-        read -rp "Add another team? [y/N]: " ADD_MORE
+        read -rp "Add another agent? [y/N]: " ADD_MORE
         if [[ ! "$ADD_MORE" =~ ^[yY] ]]; then
-            ADDING_TEAMS=false
+            ADDING_AGENTS=false
             continue
         fi
 
-        read -rp "  Team ID (lowercase, no spaces): " NEW_TEAM_ID
-        NEW_TEAM_ID=$(echo "$NEW_TEAM_ID" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')
-        if [ -z "$NEW_TEAM_ID" ]; then
+        read -rp "  Agent ID (lowercase, no spaces): " NEW_AGENT_ID
+        NEW_AGENT_ID=$(echo "$NEW_AGENT_ID" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')
+        if [ -z "$NEW_AGENT_ID" ]; then
             echo -e "${RED}  Invalid ID, skipping${NC}"
             continue
         fi
 
-        read -rp "  Display name: " NEW_TEAM_NAME
-        [ -z "$NEW_TEAM_NAME" ] && NEW_TEAM_NAME="$NEW_TEAM_ID"
+        read -rp "  Display name: " NEW_AGENT_NAME
+        [ -z "$NEW_AGENT_NAME" ] && NEW_AGENT_NAME="$NEW_AGENT_ID"
 
         echo "  Provider: 1) Anthropic  2) OpenAI"
         read -rp "  Choose [1-2, default: 1]: " NEW_PROVIDER_CHOICE
@@ -241,18 +241,18 @@ if [[ "$SETUP_TEAMS" =~ ^[yY] ]]; then
             esac
         fi
 
-        NEW_TEAM_DIR="$WORKSPACE_PATH/$NEW_TEAM_ID"
+        NEW_AGENT_DIR="$WORKSPACE_PATH/$NEW_AGENT_ID"
 
-        TEAMS_JSON="$TEAMS_JSON, \"$NEW_TEAM_ID\": { \"name\": \"$NEW_TEAM_NAME\", \"provider\": \"$NEW_PROVIDER\", \"model\": \"$NEW_MODEL\", \"working_directory\": \"$NEW_TEAM_DIR\" }"
+        AGENTS_JSON="$AGENTS_JSON, \"$NEW_AGENT_ID\": { \"name\": \"$NEW_AGENT_NAME\", \"provider\": \"$NEW_PROVIDER\", \"model\": \"$NEW_MODEL\", \"working_directory\": \"$NEW_AGENT_DIR\" }"
 
-        # Track this team for directory creation later
-        ADDITIONAL_TEAMS+=("$NEW_TEAM_ID")
+        # Track this agent for directory creation later
+        ADDITIONAL_AGENTS+=("$NEW_AGENT_ID")
 
-        echo -e "  ${GREEN}✓ Team '${NEW_TEAM_ID}' added${NC}"
+        echo -e "  ${GREEN}✓ Agent '${NEW_AGENT_ID}' added${NC}"
     done
 fi
 
-TEAMS_JSON="$TEAMS_JSON },"
+AGENTS_JSON="$AGENTS_JSON },"
 
 # Build enabled channels array JSON
 CHANNELS_JSON="["
@@ -292,7 +292,7 @@ cat > "$SETTINGS_FILE" <<EOF
     },
     "whatsapp": {}
   },
-  ${TEAMS_JSON}
+  ${AGENTS_JSON}
   ${MODELS_SECTION},
   "monitoring": {
     "heartbeat_interval": ${HEARTBEAT_INTERVAL}
@@ -325,44 +325,44 @@ if [ -f "$PROJECT_ROOT/AGENTS.md" ]; then
 fi
 echo -e "${GREEN}✓ Created ~/.tinyclaw with templates${NC}"
 
-# Create default team directory with config files
-mkdir -p "$DEFAULT_TEAM_DIR"
+# Create default agent directory with config files
+mkdir -p "$DEFAULT_AGENT_DIR"
 if [ -d "$TINYCLAW_HOME/.claude" ]; then
-    cp -r "$TINYCLAW_HOME/.claude" "$DEFAULT_TEAM_DIR/"
+    cp -r "$TINYCLAW_HOME/.claude" "$DEFAULT_AGENT_DIR/"
 fi
 if [ -f "$TINYCLAW_HOME/heartbeat.md" ]; then
-    cp "$TINYCLAW_HOME/heartbeat.md" "$DEFAULT_TEAM_DIR/"
+    cp "$TINYCLAW_HOME/heartbeat.md" "$DEFAULT_AGENT_DIR/"
 fi
 if [ -f "$TINYCLAW_HOME/AGENTS.md" ]; then
-    cp "$TINYCLAW_HOME/AGENTS.md" "$DEFAULT_TEAM_DIR/"
+    cp "$TINYCLAW_HOME/AGENTS.md" "$DEFAULT_AGENT_DIR/"
 fi
-echo -e "${GREEN}✓ Created default team directory: $DEFAULT_TEAM_DIR${NC}"
+echo -e "${GREEN}✓ Created default agent directory: $DEFAULT_AGENT_DIR${NC}"
 
 # Create ~/.tinyclaw/files directory for file exchange
 mkdir -p "$TINYCLAW_HOME/files"
 echo -e "${GREEN}✓ Created files directory: $TINYCLAW_HOME/files${NC}"
 
-# Create directories for additional teams
-for team_id in "${ADDITIONAL_TEAMS[@]}"; do
-    TEAM_DIR="$WORKSPACE_PATH/$team_id"
-    mkdir -p "$TEAM_DIR"
+# Create directories for additional agents
+for agent_id in "${ADDITIONAL_AGENTS[@]}"; do
+    AGENT_DIR="$WORKSPACE_PATH/$agent_id"
+    mkdir -p "$AGENT_DIR"
     if [ -d "$TINYCLAW_HOME/.claude" ]; then
-        cp -r "$TINYCLAW_HOME/.claude" "$TEAM_DIR/"
+        cp -r "$TINYCLAW_HOME/.claude" "$AGENT_DIR/"
     fi
     if [ -f "$TINYCLAW_HOME/heartbeat.md" ]; then
-        cp "$TINYCLAW_HOME/heartbeat.md" "$TEAM_DIR/"
+        cp "$TINYCLAW_HOME/heartbeat.md" "$AGENT_DIR/"
     fi
     if [ -f "$TINYCLAW_HOME/AGENTS.md" ]; then
-        cp "$TINYCLAW_HOME/AGENTS.md" "$TEAM_DIR/"
+        cp "$TINYCLAW_HOME/AGENTS.md" "$AGENT_DIR/"
     fi
-    echo -e "${GREEN}✓ Created team directory: $TEAM_DIR${NC}"
+    echo -e "${GREEN}✓ Created agent directory: $AGENT_DIR${NC}"
 done
 
 echo -e "${GREEN}✓ Configuration saved to ~/.tinyclaw/settings.json${NC}"
 echo ""
-echo "You can manage teams later with:"
-echo -e "  ${GREEN}./tinyclaw.sh team list${NC}    - List teams"
-echo -e "  ${GREEN}./tinyclaw.sh team add${NC}     - Add more teams"
+echo "You can manage agents later with:"
+echo -e "  ${GREEN}./tinyclaw.sh agent list${NC}    - List agents"
+echo -e "  ${GREEN}./tinyclaw.sh agent add${NC}     - Add more agents"
 echo ""
 echo "You can now start TinyClaw:"
 echo -e "  ${GREEN}./tinyclaw.sh start${NC}"

@@ -24,7 +24,7 @@ mkdir -p "$LOG_DIR"
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/daemon.sh"
 source "$SCRIPT_DIR/lib/messaging.sh"
-source "$SCRIPT_DIR/lib/teams.sh"
+source "$SCRIPT_DIR/lib/agents.sh"
 source "$SCRIPT_DIR/lib/update.sh"
 
 # --- Main command dispatch ---
@@ -227,53 +227,53 @@ case "${1:-}" in
             esac
         fi
         ;;
-    team)
+    agent)
         case "${2:-}" in
             list|ls)
-                team_list
+                agent_list
                 ;;
             add)
-                team_add
+                agent_add
                 ;;
             remove|rm)
                 if [ -z "$3" ]; then
-                    echo "Usage: $0 team remove <team_id>"
+                    echo "Usage: $0 agent remove <agent_id>"
                     exit 1
                 fi
-                team_remove "$3"
+                agent_remove "$3"
                 ;;
             show)
                 if [ -z "$3" ]; then
-                    echo "Usage: $0 team show <team_id>"
+                    echo "Usage: $0 agent show <agent_id>"
                     exit 1
                 fi
-                team_show "$3"
+                agent_show "$3"
                 ;;
             reset)
                 if [ -z "$3" ]; then
-                    echo "Usage: $0 team reset <team_id>"
+                    echo "Usage: $0 agent reset <agent_id>"
                     exit 1
                 fi
-                team_reset "$3"
+                agent_reset "$3"
                 ;;
             *)
-                echo "Usage: $0 team {list|add|remove|show|reset}"
+                echo "Usage: $0 agent {list|add|remove|show|reset}"
                 echo ""
-                echo "Team Commands:"
-                echo "  list                   List all configured teams"
-                echo "  add                    Add a new team interactively"
-                echo "  remove <id>            Remove a team"
-                echo "  show <id>              Show team configuration"
-                echo "  reset <id>             Reset a team's conversation"
+                echo "Agent Commands:"
+                echo "  list                   List all configured agents"
+                echo "  add                    Add a new agent interactively"
+                echo "  remove <id>            Remove an agent"
+                echo "  show <id>              Show agent configuration"
+                echo "  reset <id>             Reset an agent's conversation"
                 echo ""
                 echo "Examples:"
-                echo "  $0 team list"
-                echo "  $0 team add"
-                echo "  $0 team show coder"
-                echo "  $0 team remove coder"
-                echo "  $0 team reset coder"
+                echo "  $0 agent list"
+                echo "  $0 agent add"
+                echo "  $0 agent show coder"
+                echo "  $0 agent remove coder"
+                echo "  $0 agent reset coder"
                 echo ""
-                echo "In chat, use '@team_id message' to route to a specific team."
+                echo "In chat, use '@agent_id message' to route to a specific agent."
                 exit 1
                 ;;
         esac
@@ -291,7 +291,7 @@ case "${1:-}" in
         local_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
         echo -e "${BLUE}TinyClaw - Claude Code + Messaging Channels${NC}"
         echo ""
-        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|team|update|attach}"
+        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|update|attach}"
         echo ""
         echo "Commands:"
         echo "  start                    Start TinyClaw"
@@ -305,7 +305,7 @@ case "${1:-}" in
         echo "  channels reset <channel> Reset channel auth ($local_names)"
         echo "  provider [name] [--model model]  Show or switch AI provider"
         echo "  model [name]             Show or switch AI model"
-        echo "  team {list|add|remove|show|reset}  Manage teams"
+        echo "  agent {list|add|remove|show|reset}  Manage agents"
         echo "  update                   Update TinyClaw to latest version"
         echo "  attach                   Attach to tmux session"
         echo ""
@@ -314,8 +314,8 @@ case "${1:-}" in
         echo "  $0 status"
         echo "  $0 provider openai --model gpt-5.3-codex"
         echo "  $0 model opus"
-        echo "  $0 team list"
-        echo "  $0 team add"
+        echo "  $0 agent list"
+        echo "  $0 agent add"
         echo "  $0 send '@coder fix the bug'"
         echo "  $0 channels reset whatsapp"
         echo "  $0 logs telegram"

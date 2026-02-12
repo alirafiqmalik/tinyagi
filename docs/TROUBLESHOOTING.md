@@ -143,20 +143,20 @@ tinyclaw logs telegram
 tinyclaw logs whatsapp
 ```
 
-## Team Issues
+## Agent Issues
 
-### Team not found
+### Agent not found
 
-If you see "Team 'xyz' not found":
+If you see "Agent 'xyz' not found":
 
-1. Check team exists:
+1. Check agent exists:
    ```bash
-   tinyclaw team list
+   tinyclaw agent list
    ```
 
-2. Verify team ID is lowercase and matches exactly:
+2. Verify agent ID is lowercase and matches exactly:
    ```bash
-   cat .tinyclaw/settings.json | jq '.teams'
+   cat .tinyclaw/settings.json | jq '.agents'
    ```
 
 3. Check settings file is valid JSON:
@@ -164,18 +164,18 @@ If you see "Team 'xyz' not found":
    cat .tinyclaw/settings.json | jq
    ```
 
-### Wrong team responding
+### Wrong agent responding
 
-If messages go to the wrong team:
+If messages go to the wrong agent:
 
-1. **Check routing prefix:** Must be `@team_id` with space after
+1. **Check routing prefix:** Must be `@agent_id` with space after
    - ✅ Correct: `@coder fix the bug`
    - ❌ Wrong: `@coderfix the bug` (no space)
-   - ❌ Wrong: `@ coder fix the bug` (space before team_id)
+   - ❌ Wrong: `@ coder fix the bug` (space before agent_id)
 
-2. **Verify team exists:**
+2. **Verify agent exists:**
    ```bash
-   tinyclaw team show coder
+   tinyclaw agent show coder
    ```
 
 3. **Check logs:**
@@ -185,11 +185,11 @@ If messages go to the wrong team:
 
 ### Conversation not resetting
 
-If `@team /reset` doesn't work:
+If `@agent /reset` doesn't work:
 
 1. Check reset flag exists:
    ```bash
-   ls ~/tinyclaw-workspace/{team_id}/reset_flag
+   ls ~/tinyclaw-workspace/{agent_id}/reset_flag
    ```
 
 2. Send a new message to trigger reset (flag is checked before each message)
@@ -200,9 +200,9 @@ If `@team /reset` doesn't work:
 
 ### CLI not found
 
-If team can't execute (error: `command not found`):
+If agent can't execute (error: `command not found`):
 
-**For Anthropic teams:**
+**For Anthropic agents:**
 ```bash
 # Check Claude CLI is installed
 claude --version
@@ -211,7 +211,7 @@ claude --version
 # Visit: https://claude.com/claude-code
 ```
 
-**For OpenAI teams:**
+**For OpenAI agents:**
 ```bash
 # Check Codex CLI is installed
 codex --version
@@ -222,7 +222,7 @@ codex login
 
 ### Workspace issues
 
-If teams aren't being created:
+If agents aren't being created:
 
 1. Check workspace path:
    ```bash
@@ -246,7 +246,7 @@ If teams aren't being created:
 
 ### Templates not copying
 
-If new teams don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
+If new agents don't have `.claude/`, `heartbeat.md`, or `AGENTS.md`:
 
 1. Check templates exist:
    ```bash
@@ -399,9 +399,9 @@ grep -i error .tinyclaw/logs/*.log
 grep "Routing" .tinyclaw/logs/queue.log
 ```
 
-**Monitor team activity:**
+**Monitor agent activity:**
 ```bash
-tail -f .tinyclaw/logs/queue.log | grep "team:"
+tail -f .tinyclaw/logs/queue.log | grep "agent:"
 ```
 
 **Check heartbeat timing:**
@@ -452,7 +452,7 @@ cd ..
 rm -rf tinyclaw
 curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-install.sh | bash
 
-# Reset single team
-tinyclaw team reset coder
+# Reset single agent
+tinyclaw agent reset coder
 tinyclaw restart
 ```

@@ -1,6 +1,6 @@
 # Queue System
 
-TinyClaw uses a file-based queue system to coordinate message processing across multiple channels and teams. This document explains how it works.
+TinyClaw uses a file-based queue system to coordinate message processing across multiple channels and agents. This document explains how it works.
 
 ## Overview
 
@@ -8,7 +8,7 @@ The queue system acts as a central coordinator between:
 - **Channel clients** (Discord, Telegram, WhatsApp) - produce messages
 - **Queue processor** - routes and processes messages
 - **AI providers** (Claude, Codex) - generate responses
-- **Teams** - isolated AI agents with different configs
+- **Agents** - isolated AI agents with different configs
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -29,9 +29,9 @@ The queue system acts as a central coordinator between:
                      │ Queue Processor
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
-│              Parallel Processing by Team                     │
+│              Parallel Processing by Agent                    │
 │                                                              │
-│  Team: coder         Team: writer        Team: assistant    │
+│  Agent: coder        Agent: writer       Agent: assistant   │
 │  ┌──────────┐       ┌──────────┐        ┌──────────┐       │
 │  │ Message 1│       │ Message 1│        │ Message 1│       │
 │  │ Message 2│ ...   │ Message 2│  ...   │ Message 2│ ...   │
@@ -83,7 +83,7 @@ A channel client receives a message and writes it to `incoming/`:
 ```
 
 **Optional fields:**
-- `agent` - Pre-route to specific team (bypasses @team_id parsing)
+- `agent` - Pre-route to specific agent (bypasses @agent_id parsing)
 - `files` - Array of file paths uploaded with message
 
 ### 2. Processing
@@ -92,29 +92,29 @@ The queue processor (runs every 1 second):
 
 1. **Scans `incoming/`** for new messages
 2. **Sorts by timestamp** (oldest first)
-3. **Determines target team**:
+3. **Determines target agent**:
    - Checks `agent` field (if pre-routed)
-   - Parses `@team_id` prefix from message
-   - Falls back to `default` team
+   - Parses `@agent_id` prefix from message
+   - Falls back to `default` agent
 4. **Moves to `processing/`** (atomic operation)
-5. **Routes to team's promise chain** (parallel processing)
+5. **Routes to agent's promise chain** (parallel processing)
 
-### 3. Team Processing
+### 3. Agent Processing
 
-Each team has its own promise chain:
+Each agent has its own promise chain:
 
 ```typescript
-// Messages to same team = sequential (preserve conversation order)
-teamChain: msg1 → msg2 → msg3
+// Messages to same agent = sequential (preserve conversation order)
+agentChain: msg1 → msg2 → msg3
 
-// Different teams = parallel (don't block each other)
+// Different agents = parallel (don't block each other)
 @coder:     msg1 ──┐
 @writer:    msg1 ──┼─→ All run concurrently
 @assistant: msg1 ──┘
 ```
 
-**Per-team isolation:**
-- Each team runs in its own `working_directory`
+**Per-agent isolation:**
+- Each agent runs in its own `working_directory`
 - Separate conversation history (managed by CLI)
 - Independent reset flags
 - Own configuration files (.claude/, AGENTS.md)
@@ -169,15 +169,15 @@ Channel clients poll `outgoing/` and:
 
 ### How It Works
 
-Each team has its own **promise chain** that processes messages sequentially:
+Each agent has its own **promise chain** that processes messages sequentially:
 
 ```typescript
-const teamProcessingChains = new Map<string, Promise<void>>();
+const agentProcessingChains = new Map<string, Promise<void>>();
 
 // When message arrives for @coder:
-const chain = teamProcessingChains.get('coder') || Promise.resolve();
+const chain = agentProcessingChains.get('coder') || Promise.resolve();
 const newChain = chain.then(() => processMessage(msg));
-teamProcessingChains.set('coder', newChain);
+agentProcessingChains.set('coder', newChain);
 ```
 
 ### Benefits
@@ -202,7 +202,7 @@ Total: 30 seconds (2.2x faster!)
 
 ### Conversation Order Preserved
 
-Messages to the **same team** remain sequential:
+Messages to the **same agent** remain sequential:
 
 ```
 @coder fix bug 1     [████] 10s
@@ -213,18 +213,18 @@ Messages to the **same team** remain sequential:
 This ensures:
 - ✅ Conversation context is maintained
 - ✅ `-c` (continue) flag works correctly
-- ✅ No race conditions within a team
-- ✅ Teams don't block each other
+- ✅ No race conditions within an agent
+- ✅ Agents don't block each other
 
-## Team Routing
+## Agent Routing
 
 ### Explicit Routing
 
-Use `@team_id` prefix:
+Use `@agent_id` prefix:
 
 ```
 User: @coder fix the login bug
-→ Routes to team "coder"
+→ Routes to agent "coder"
 → Message becomes: "fix the login bug"
 ```
 
@@ -244,47 +244,47 @@ const queueData = {
 
 ```
 1. Check message.agent field (if pre-routed)
-2. Parse @team_id from message text
-3. Look up team in settings.teams
-4. Fall back to 'default' team
-5. If no default, use first available team
+2. Parse @agent_id from message text
+3. Look up agent in settings.agents
+4. Fall back to 'default' agent
+5. If no default, use first available agent
 ```
 
 ### Routing Examples
 
 ```
-"@coder fix bug"           → team: coder
-"help me"                  → team: default
-"@unknown test"            → team: default (unknown team)
-"@assistant help"          → team: assistant
-pre-routed with agent=X    → team: X
+"@coder fix bug"           → agent: coder
+"help me"                  → agent: default
+"@unknown test"            → agent: default (unknown agent)
+"@assistant help"          → agent: assistant
+pre-routed with agent=X    → agent: X
 ```
 
-### Easter Egg: Multiple Teams 🥚
+### Easter Egg: Multiple Agents 🥚
 
-If you mention multiple teams in one message:
+If you mention multiple agents in one message:
 
 ```
 User: "@coder @writer fix this bug and document it"
 
 Result:
-  → Returns friendly message about upcoming team-to-team collaboration
+  → Returns friendly message about upcoming agent-to-agent collaboration
   → No AI processing (saves tokens!)
-  → Suggests sending separate messages to each team
+  → Suggests sending separate messages to each agent
 ```
 
 **The easter egg message:**
-> 🚀 **Team-to-Team Collaboration - Coming Soon!**
+> 🚀 **Agent-to-Agent Collaboration - Coming Soon!**
 >
-> You mentioned multiple teams: @coder, @writer
+> You mentioned multiple agents: @coder, @writer
 >
-> Right now, I can only route to one team at a time. But we're working on something cool:
+> Right now, I can only route to one agent at a time. But we're working on something cool:
 >
-> ✨ **Multi-Team Coordination** - Teams will be able to collaborate on complex tasks!
-> ✨ **Smart Routing** - Send instructions to multiple teams at once!
-> ✨ **Team Handoffs** - One team can delegate to another!
+> ✨ **Multi-Agent Coordination** - Agents will be able to collaborate on complex tasks!
+> ✨ **Smart Routing** - Send instructions to multiple agents at once!
+> ✨ **Agent Handoffs** - One agent can delegate to another!
 >
-> For now, please send separate messages to each team:
+> For now, please send separate messages to each agent:
 > • `@coder [your message]`
 > • `@writer [your message]`
 >
@@ -302,19 +302,19 @@ Creates `~/.tinyclaw/reset_flag`:
 ./tinyclaw.sh reset
 ```
 
-Next message to **any team** starts fresh (no `-c` flag).
+Next message to **any agent** starts fresh (no `-c` flag).
 
-### Per-Team Reset
+### Per-Agent Reset
 
-Creates `~/workspace/{team_id}/reset_flag`:
+Creates `~/workspace/{agent_id}/reset_flag`:
 
 ```bash
-./tinyclaw.sh team reset coder
+./tinyclaw.sh agent reset coder
 # Or in chat:
 @coder /reset
 ```
 
-Next message to **that team** starts fresh.
+Next message to **that agent** starts fresh.
 
 ### How Resets Work
 
@@ -322,9 +322,9 @@ Queue processor checks before each message:
 
 ```typescript
 const globalReset = fs.existsSync(RESET_FLAG);
-const teamReset = fs.existsSync(`${teamDir}/reset_flag`);
+const agentReset = fs.existsSync(`${agentDir}/reset_flag`);
 
-if (globalReset || teamReset) {
+if (globalReset || agentReset) {
   // Don't pass -c flag to CLI
   // Delete flag files
 }
@@ -356,27 +356,27 @@ AI response: "Here's the diagram [send_file: /path/to/diagram.png]"
 
 ## Error Handling
 
-### Missing Teams
+### Missing Agents
 
-If team not found:
+If agent not found:
 ```
 User: @unknown help
-→ Routes to: default team
-→ Logs: WARNING - Team 'unknown' not found, using 'default'
+→ Routes to: default agent
+→ Logs: WARNING - Agent 'unknown' not found, using 'default'
 ```
 
 ### Processing Errors
 
-Errors are caught per-team:
+Errors are caught per-agent:
 
 ```typescript
 newChain.catch(error => {
-  log('ERROR', `Error processing message for team ${teamId}: ${error.message}`);
+  log('ERROR', `Error processing message for agent ${agentId}: ${error.message}`);
 });
 ```
 
 Failed messages:
-- Don't block other teams
+- Don't block other agents
 - Are logged to `queue.log`
 - Response file not created
 - Channel client times out gracefully
@@ -393,26 +393,26 @@ Old messages in `processing/` (crashed mid-process):
 ### Throughput
 
 - **Sequential**: 1 message per AI response time (~10-30s)
-- **Parallel**: N teams × 1 message per response time
-- **3 teams**: ~3x throughput improvement
+- **Parallel**: N agents × 1 message per response time
+- **3 agents**: ~3x throughput improvement
 
 ### Latency
 
 - Queue check: Every 1 second
-- Team routing: <1ms (file peek)
+- Agent routing: <1ms (file peek)
 - Max latency: 1s + AI response time
 
 ### Scaling
 
 **Good for:**
-- ✅ Multiple independent teams
+- ✅ Multiple independent agents
 - ✅ High message volume
 - ✅ Long AI response times
 
 **Limitations:**
 - ⚠️ File-based (not database)
 - ⚠️ Single queue processor instance
-- ⚠️ All teams on same machine
+- ⚠️ All agents on same machine
 
 ## Debugging
 
@@ -444,11 +444,11 @@ tail -f ~/.tinyclaw/logs/queue.log
 - Restart: `./tinyclaw.sh restart`
 
 **No responses generated:**
-- Check team routing (wrong @team_id?)
+- Check agent routing (wrong @agent_id?)
 - Check AI CLI is installed (claude/codex)
 - Check logs: `tail -f ~/.tinyclaw/logs/queue.log`
 
-**Teams not processing in parallel:**
+**Agents not processing in parallel:**
 - Check TypeScript build: `npm run build`
 - Check queue processor version in logs
 
@@ -476,19 +476,19 @@ interface QueueMessage {
 
 ### Load Balancing
 
-Currently: All teams run on same machine
+Currently: All agents run on same machine
 
-Future: Route teams to different machines:
+Future: Route agents to different machines:
 ```json
 {
-  "teams": {
+  "agents": {
     "coder": {
       "host": "worker1.local",
-      "working_directory": "/teams/coder"
+      "working_directory": "/agents/coder"
     },
     "writer": {
       "host": "worker2.local",
-      "working_directory": "/teams/writer"
+      "working_directory": "/agents/writer"
     }
   }
 }
@@ -498,14 +498,14 @@ Future: Route teams to different machines:
 
 Add metrics:
 ```typescript
-- messages_processed_total (by team)
-- processing_duration_seconds (by team)
+- messages_processed_total (by agent)
+- processing_duration_seconds (by agent)
 - queue_depth (incoming/processing/outgoing)
-- team_active_processing (concurrent count)
+- agent_active_processing (concurrent count)
 ```
 
 ## See Also
 
-- [TEAM_OF_AGENTS.md](TEAM_OF_AGENTS.md) - Team configuration and management
+- [AGENTS.md](AGENTS.md) - Agent configuration and management
 - [README.md](../README.md) - Main project documentation
 - [src/queue-processor.ts](../src/queue-processor.ts) - Implementation

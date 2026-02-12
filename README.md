@@ -1,15 +1,15 @@
 # TinyClaw 🦞
 
-**Multi-team, multi-channel, 24/7 AI assistant**
+**Multi-agent, multi-channel, 24/7 AI assistant**
 
-Run multiple AI teams simultaneously with isolated workspaces and conversation contexts. Route messages to specialized teams using simple `@team_id` syntax.
+Run multiple AI agents simultaneously with isolated workspaces and conversation contexts. Route messages to specialized agents using simple `@agent_id` syntax.
 
 ## ✨ Features
 
-- ✅ **Team of agents** - Run multiple isolated AI teams with specialized roles
+- ✅ **Multi-agent** - Run multiple isolated AI agents with specialized roles
 - ✅ **Multiple AI providers** - Anthropic Claude (Sonnet/Opus) and OpenAI (GPT/Codex)
 - ✅ **Multi-channel** - Discord, WhatsApp, and Telegram
-- ✅ **Parallel processing** - Teams process messages concurrently
+- ✅ **Parallel processing** - Agents process messages concurrently
 - ✅ **Persistent sessions** - Conversation context maintained across restarts
 - ✅ **File-based queue** - No race conditions, reliable message handling
 - ✅ **24/7 operation** - Runs in tmux for always-on availability
@@ -59,7 +59,7 @@ The setup wizard will guide you through:
 1. **Channel selection** - Choose Discord, WhatsApp, and/or Telegram
 2. **Bot tokens** - Enter tokens for enabled channels
 3. **Workspace setup** - Name your workspace directory
-4. **Default team** - Configure your main AI assistant
+4. **Default agent** - Configure your main AI assistant
 5. **AI provider** - Select Anthropic (Claude) or OpenAI
 6. **Model selection** - Choose model (e.g., Sonnet, Opus, GPT-5.3)
 7. **Heartbeat interval** - Set proactive check-in frequency
@@ -113,15 +113,15 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 | `logs [type]` | View logs (discord/telegram/whatsapp/queue/heartbeat/all) | `tinyclaw logs queue` |
 | `attach`      | Attach to tmux session                                    | `tinyclaw attach`     |
 
-### Team Commands
+### Agent Commands
 
-| Command            | Description                | Example                      |
-| ------------------ | -------------------------- | ---------------------------- |
-| `team list`        | List all configured teams  | `tinyclaw team list`         |
-| `team add`         | Add new team (interactive) | `tinyclaw team add`          |
-| `team show <id>`   | Show team configuration    | `tinyclaw team show coder`   |
-| `team remove <id>` | Remove a team              | `tinyclaw team remove coder` |
-| `team reset <id>`  | Reset team conversation    | `tinyclaw team reset coder`  |
+| Command             | Description                 | Example                       |
+| ------------------- | --------------------------- | ----------------------------- |
+| `agent list`        | List all configured agents  | `tinyclaw agent list`         |
+| `agent add`         | Add new agent (interactive) | `tinyclaw agent add`          |
+| `agent show <id>`   | Show agent configuration    | `tinyclaw agent show coder`   |
+| `agent remove <id>` | Remove an agent             | `tinyclaw agent remove coder` |
+| `agent reset <id>`  | Reset agent conversation    | `tinyclaw agent reset coder`  |
 
 ### Configuration Commands
 
@@ -171,38 +171,38 @@ export TINYCLAW_SKIP_UPDATE_CHECK=1
 | Command          | Description                 | Example                          |
 | ---------------- | --------------------------- | -------------------------------- |
 | `send <message>` | Send message to AI manually | `tinyclaw send "Hello!"`         |
-| `send <message>` | Route to specific team      | `tinyclaw send "@coder fix bug"` |
+| `send <message>` | Route to specific agent     | `tinyclaw send "@coder fix bug"` |
 
 ### In-Chat Commands
 
 These commands work in Discord, Telegram, and WhatsApp:
 
-| Command            | Description                           | Example                              |
-| ------------------ | ------------------------------------- | ------------------------------------ |
-| `@team_id message` | Route message to specific team        | `@coder fix the bug`                 |
-| `/team`            | List all available teams              | `/team`                              |
-| `@team_id /reset`  | Reset specific team conversation      | `@coder /reset`                      |
-| `/reset`           | Reset conversation (WhatsApp/global)  | `/reset` or `!reset`                 |
-| `message`          | Send to default team (no prefix)      | `help me with this`                  |
+| Command             | Description                                  | Example                              |
+| ------------------- | -------------------------------------------- | ------------------------------------ |
+| `@agent_id message` | Route message to specific agent              | `@coder fix the bug`                 |
+| `/agent`            | List all available agents                    | `/agent`                             |
+| `@agent_id /reset`  | Reset specific agent conversation            | `@coder /reset`                      |
+| `/reset`            | Reset conversation (WhatsApp/global)         | `/reset` or `!reset`                 |
+| `message`           | Send to default agent (no prefix)            | `help me with this`                  |
 
-**Note:** The `@team_id` routing prefix requires a space after it (e.g., `@coder fix` not `@coderfix`).
+**Note:** The `@agent_id` routing prefix requires a space after it (e.g., `@coder fix` not `@coderfix`).
 
-## 🤖 Using Teams
+## 🤖 Using Agents
 
 ### Routing Messages
 
-Use `@team_id` prefix to route messages to specific teams (see [In-Chat Commands](#in-chat-commands) table above):
+Use `@agent_id` prefix to route messages to specific agents (see [In-Chat Commands](#in-chat-commands) table above):
 
 ```
 @coder fix the authentication bug
 @writer document the API endpoints
 @researcher find papers on transformers
-help me with this  ← goes to default team (no prefix needed)
+help me with this  ← goes to default agent (no prefix needed)
 ```
 
-### Team Configuration
+### Agent Configuration
 
-Teams are configured in `.tinyclaw/settings.json`:
+Agents are configured in `.tinyclaw/settings.json`:
 
 ```json
 {
@@ -210,7 +210,7 @@ Teams are configured in `.tinyclaw/settings.json`:
     "path": "/Users/me/tinyclaw-workspace",
     "name": "tinyclaw-workspace"
   },
-  "teams": {
+  "agents": {
     "coder": {
       "name": "Code Assistant",
       "provider": "anthropic",
@@ -227,20 +227,20 @@ Teams are configured in `.tinyclaw/settings.json`:
 }
 ```
 
-Each team operates in isolation:
+Each agent operates in isolation:
 
-- **Separate workspace directory** - `~/tinyclaw-workspace/{team_id}/`
+- **Separate workspace directory** - `~/tinyclaw-workspace/{agent_id}/`
 - **Own conversation history** - Maintained by CLI
 - **Custom configuration** - `.claude/`, `heartbeat.md` (root), `AGENTS.md`
-- **Independent resets** - Reset individual team conversations
+- **Independent resets** - Reset individual agent conversations
 
 <details>
-<summary><b>📖 Learn more about teams</b></summary>
+<summary><b>📖 Learn more about agents</b></summary>
 
-See [docs/TEAM_OF_AGENTS.md](docs/TEAM_OF_AGENTS.md) for:
+See [docs/AGENTS.md](docs/AGENTS.md) for:
 
 - Architecture details
-- Team configuration
+- Agent configuration
 - Use cases and examples
 - Advanced features
 - Troubleshooting
@@ -268,9 +268,9 @@ See [docs/TEAM_OF_AGENTS.md](docs/TEAM_OF_AGENTS.md) for:
                      │ Queue Processor
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
-│              Parallel Processing by Team                     │
+│              Parallel Processing by Agent                    │
 │                                                              │
-│  Team: coder         Team: writer        Team: assistant    │
+│  Agent: coder        Agent: writer       Agent: assistant   │
 │  ┌──────────┐       ┌──────────┐        ┌──────────┐       │
 │  │ Message 1│       │ Message 1│        │ Message 1│       │
 │  │ Message 2│ ...   │ Message 2│  ...   │ Message 2│ ...   │
@@ -286,9 +286,9 @@ See [docs/TEAM_OF_AGENTS.md](docs/TEAM_OF_AGENTS.md) for:
 **Key features:**
 
 - **File-based queue** - Atomic operations, no race conditions
-- **Parallel teams** - Different teams process messages concurrently
-- **Sequential per team** - Preserves conversation order within each team
-- **Isolated workspaces** - Each team has its own directory and context
+- **Parallel agents** - Different agents process messages concurrently
+- **Sequential per agent** - Preserves conversation order within each agent
+- **Isolated workspaces** - Each agent has its own directory and context
 
 <details>
 <summary><b>📖 Learn more about the queue system</b></summary>
@@ -315,10 +315,10 @@ tinyclaw/
 │   ├── logs/             # All logs
 │   ├── channels/         # Channel state
 │   ├── files/            # Uploaded files
-│   ├── .claude/          # Template for teams
-│   ├── heartbeat.md      # Template for teams
-│   └── AGENTS.md         # Template for teams
-├── ~/tinyclaw-workspace/ # Team workspaces
+│   ├── .claude/          # Template for agents
+│   ├── heartbeat.md      # Template for agents
+│   └── AGENTS.md         # Template for agents
+├── ~/tinyclaw-workspace/ # Agent workspaces
 │   ├── coder/
 │   │   ├── .claude/
 │   │   ├── heartbeat.md
@@ -350,7 +350,7 @@ Located at `.tinyclaw/settings.json`:
     "path": "/Users/me/tinyclaw-workspace",
     "name": "tinyclaw-workspace"
   },
-  "teams": {
+  "agents": {
     "assistant": {
       "name": "Assistant",
       "provider": "anthropic",
@@ -366,10 +366,10 @@ Located at `.tinyclaw/settings.json`:
 
 ### Heartbeat Configuration
 
-Edit team-specific heartbeat prompts:
+Edit agent-specific heartbeat prompts:
 
 ```bash
-# Edit heartbeat for specific team
+# Edit heartbeat for specific agent
 nano ~/tinyclaw-workspace/coder/heartbeat.md
 ```
 
@@ -396,7 +396,7 @@ Claude: "I'll remind you!"
 Claude: "Don't forget to call mom!"
 ```
 
-### Multi-Team Workflow
+### Multi-Agent Workflow
 
 ```
 @coder Review and fix bugs in auth.ts
@@ -411,11 +411,11 @@ Claude: "Don't forget to call mom!"
 - Telegram anywhere
 - CLI for automation
 
-All channels share team conversations!
+All channels share agent conversations!
 
 ## 📚 Documentation
 
-- [TEAM_OF_AGENTS.md](docs/TEAM_OF_AGENTS.md) - Team management and routing
+- [AGENTS.md](docs/AGENTS.md) - Agent management and routing
 - [QUEUE.md](docs/QUEUE.md) - Queue system and message flow
 - [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
@@ -444,7 +444,7 @@ tinyclaw logs all
 - Bash version error → Install bash 4.0+: `brew install bash`
 - WhatsApp not connecting → Reset auth: `tinyclaw channels reset whatsapp`
 - Messages stuck → Clear queue: `rm -rf .tinyclaw/queue/processing/*`
-- Team not found → Check: `tinyclaw team list`
+- Agent not found → Check: `tinyclaw agent list`
 
 **Need help?**
 
