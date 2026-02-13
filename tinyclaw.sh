@@ -30,6 +30,7 @@ source "$SCRIPT_DIR/lib/daemon.sh"
 source "$SCRIPT_DIR/lib/messaging.sh"
 source "$SCRIPT_DIR/lib/agents.sh"
 source "$SCRIPT_DIR/lib/teams.sh"
+source "$SCRIPT_DIR/lib/pairing.sh"
 source "$SCRIPT_DIR/lib/update.sh"
 
 # --- Main command dispatch ---
@@ -346,6 +347,9 @@ case "${1:-}" in
                 ;;
         esac
         ;;
+    pairing)
+        pairing_command "${2:-}" "${3:-}"
+        ;;
     attach)
         tmux attach -t "$TMUX_SESSION"
         ;;
@@ -359,7 +363,7 @@ case "${1:-}" in
         local_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
         echo -e "${BLUE}TinyClaw - Claude Code + Messaging Channels${NC}"
         echo ""
-        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|team|update|attach}"
+        echo "Usage: $0 {start|stop|restart|status|setup|send|logs|reset|channels|provider|model|agent|team|pairing|update|attach}"
         echo ""
         echo "Commands:"
         echo "  start                    Start TinyClaw"
@@ -375,6 +379,7 @@ case "${1:-}" in
         echo "  model [name]             Show or switch AI model"
         echo "  agent {list|add|remove|show|reset}  Manage agents"
         echo "  team {list|add|remove|show|visualize}  Manage teams"
+        echo "  pairing {pending|approved|list|approve <code>|unpair <channel> <sender_id>}  Manage sender approvals"
         echo "  update                   Update TinyClaw to latest version"
         echo "  attach                   Attach to tmux session"
         echo ""
@@ -387,6 +392,9 @@ case "${1:-}" in
         echo "  $0 agent add"
         echo "  $0 team list"
         echo "  $0 team visualize dev"
+        echo "  $0 pairing pending"
+        echo "  $0 pairing approve ABCD1234"
+        echo "  $0 pairing unpair telegram 123456789"
         echo "  $0 send '@coder fix the bug'"
         echo "  $0 send '@dev fix the auth bug'"
         echo "  $0 channels reset whatsapp"
