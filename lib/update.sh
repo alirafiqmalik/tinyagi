@@ -216,9 +216,14 @@ do_update() {
     cp -r tinyclaw/dist "$SCRIPT_DIR/"
     cp -r tinyclaw/lib "$SCRIPT_DIR/"
     cp -r tinyclaw/scripts "$SCRIPT_DIR/"
+    cp -r tinyclaw/docs "$SCRIPT_DIR/" 2>/dev/null || true
+    cp -r tinyclaw/.agents "$SCRIPT_DIR/" 2>/dev/null || true
     cp tinyclaw/tinyclaw.sh "$SCRIPT_DIR/"
     cp tinyclaw/package.json "$SCRIPT_DIR/"
     cp tinyclaw/package-lock.json "$SCRIPT_DIR/" 2>/dev/null || true
+    cp tinyclaw/AGENTS.md "$SCRIPT_DIR/" 2>/dev/null || true
+    cp tinyclaw/SOUL.md "$SCRIPT_DIR/" 2>/dev/null || true
+    cp tinyclaw/heartbeat.md "$SCRIPT_DIR/" 2>/dev/null || true
 
     # Make executable
     chmod +x "$SCRIPT_DIR/bin/tinyclaw"
