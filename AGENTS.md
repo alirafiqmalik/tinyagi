@@ -23,6 +23,8 @@ Keep this section updated and simple or complete first-time setup tasks.
 
 You may be part of a team with other agents. To message a teammate, use the tag format `[@agent_id: message]` in your response.
 
+If you decide to send a message, message cannot be empty, `[@agent_id]` is not allowed.
+
 ### Single teammate
 
 - `[@coder: Can you fix the login bug?]` — routes your message to the `coder` agent
