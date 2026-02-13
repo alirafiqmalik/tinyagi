@@ -1,15 +1,16 @@
 # TinyClaw 🦞
 
-**Multi-agent, multi-channel, 24/7 AI assistant**
+**Multi-agent, Multi-team, Multi-channel, 24/7 AI assistant**
 
-Run multiple AI agents simultaneously with isolated workspaces and conversation contexts. Route messages to specialized agents using simple `@agent_id` syntax.
+Run multiple teams of AI agents that collaborate with each other simultaneously with isolated workspaces.
 
 ## ✨ Features
 
 - ✅ **Multi-agent** - Run multiple isolated AI agents with specialized roles
-- ✅ **Team collaboration** - Agents hand off work to teammates via chain execution and fan-out
-- ✅ **Multiple AI providers** - Anthropic Claude (Sonnet/Opus) and OpenAI (GPT/Codex)
+- ✅ **Multi-team collaboration** - Agents hand off work to teammates via chain execution and fan-out
 - ✅ **Multi-channel** - Discord, WhatsApp, and Telegram
+- ✅ **Team Observation** - You can observe agent teams conversations via `tinyclaw team visualize`
+- ✅ **Multiple AI providers** - Anthropic Claude and OpenAI Codex using existing subscriptions without breaking ToS
 - ✅ **Parallel processing** - Agents process messages concurrently
 - ✅ **Live TUI dashboard** - Real-time team visualizer for monitoring agent chains
 - ✅ **Persistent sessions** - Conversation context maintained across restarts
