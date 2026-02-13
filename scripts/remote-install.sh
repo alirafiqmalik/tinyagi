@@ -82,13 +82,13 @@ echo ""
 if [ -d "$INSTALL_DIR" ]; then
     echo -e "${YELLOW}TinyClaw is already installed at $INSTALL_DIR${NC}"
     echo ""
-    read -p "Remove and reinstall? (y/N) " -n 1 -r
+    read -p "Re-install? (settings and user data will be preserved) (y/N) " -n 1 -r
     echo ""
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "Installation cancelled."
         exit 0
     fi
-    rm -rf "$INSTALL_DIR"
+    # Don't rm -rf — preserve settings.json, queue/, logs/, channels/, etc.
 fi
 
 # Detect if we can use pre-built bundle

@@ -210,26 +210,15 @@ do_update() {
     cd "$temp_dir"
     tar -xzf "$bundle_file"
 
-    # Copy new files (preserve .tinyclaw/)
-    cp -r tinyclaw/bin "$SCRIPT_DIR/"
-    cp -r tinyclaw/src "$SCRIPT_DIR/"
-    cp -r tinyclaw/dist "$SCRIPT_DIR/"
-    cp -r tinyclaw/lib "$SCRIPT_DIR/"
-    cp -r tinyclaw/scripts "$SCRIPT_DIR/"
-    cp -r tinyclaw/docs "$SCRIPT_DIR/" 2>/dev/null || true
-    cp -r tinyclaw/.agents "$SCRIPT_DIR/" 2>/dev/null || true
-    cp tinyclaw/tinyclaw.sh "$SCRIPT_DIR/"
-    cp tinyclaw/package.json "$SCRIPT_DIR/"
-    cp tinyclaw/package-lock.json "$SCRIPT_DIR/" 2>/dev/null || true
-    cp tinyclaw/AGENTS.md "$SCRIPT_DIR/" 2>/dev/null || true
-    cp tinyclaw/SOUL.md "$SCRIPT_DIR/" 2>/dev/null || true
-    cp tinyclaw/heartbeat.md "$SCRIPT_DIR/" 2>/dev/null || true
+    # Copy all bundle files into install dir.
+    # User data (settings.json, queue/, logs/, etc.) is not in the bundle
+    # so it won't be overwritten.
+    cp -a tinyclaw/. "$SCRIPT_DIR/"
 
-    # Make executable
-    chmod +x "$SCRIPT_DIR/bin/tinyclaw"
+    # Make scripts executable
+    find "$SCRIPT_DIR/bin" "$SCRIPT_DIR/lib" "$SCRIPT_DIR/scripts" \
+        -type f \( -name "*.sh" -o -name "tinyclaw" \) -exec chmod +x {} +
     chmod +x "$SCRIPT_DIR/tinyclaw.sh"
-    chmod +x "$SCRIPT_DIR/lib/setup-wizard.sh"
-    chmod +x "$SCRIPT_DIR/lib/heartbeat-cron.sh"
 
     rm -rf "$temp_dir"
 

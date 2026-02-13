@@ -170,6 +170,12 @@ Pairing behavior:
 | -------- | --------------------------------- | ----------------- |
 | `update` | Update TinyClaw to latest version | `tinyclaw update` |
 
+> **Note:** If you are on v0.0.1 or v0.0.2, the update script was broken. Please re-install instead:
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-install.sh | bash
+> ```
+> Your settings and user data will be preserved.
+
 <details>
 <summary><b>Update Details</b></summary>
 
