@@ -1,8 +1,21 @@
-# TinyClaw 🦞
-
-**Multi-agent, Multi-team, Multi-channel, 24/7 AI assistant**
-
-Run multiple teams of AI agents that collaborate with each other simultaneously with isolated workspaces.
+<div align="center">
+  <img src="./docs/images/tinyclaw.png" alt="TinyClaw" width="600" />
+  <h1>TinyClaw 🦞</h1>
+  <p><strong>Multi-agent, Multi-team, Multi-channel, 24/7 AI assistant</strong></p>
+  <p>Run multiple teams of AI agents that collaborate with each other simultaneously with isolated workspaces.</p>
+  <p>
+    <img src="https://img.shields.io/badge/stability-experimental-orange.svg" alt="Experimental" />
+    <a href="https://opensource.org/licenses/MIT">
+      <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" />
+    </a>
+    <a href="https://discord.gg/jH6AcEChuD">
+      <img src="https://img.shields.io/discord/1353722981163208785?logo=discord&logoColor=white&label=Discord&color=7289DA" alt="Discord" />
+    </a>
+    <a href="https://github.com/jlia0/tinyclaw/releases/latest">
+      <img src="https://img.shields.io/github/v/release/jlia0/tinyclaw?label=Latest&color=green" alt="Latest Release" />
+    </a>
+  </p>
+</div>
 
 ## ✨ Features
 
@@ -128,13 +141,13 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 
 ### Team Commands
 
-| Command                  | Description                              | Example                       |
-| ------------------------ | ---------------------------------------- | ----------------------------- |
-| `team list`              | List all configured teams                | `tinyclaw team list`          |
-| `team add`               | Add new team (interactive)               | `tinyclaw team add`           |
-| `team show <id>`         | Show team configuration                  | `tinyclaw team show dev`      |
-| `team remove <id>`       | Remove a team                            | `tinyclaw team remove dev`    |
-| `team visualize [id]`    | Live TUI dashboard for team chains       | `tinyclaw team visualize dev` |
+| Command               | Description                        | Example                       |
+| --------------------- | ---------------------------------- | ----------------------------- |
+| `team list`           | List all configured teams          | `tinyclaw team list`          |
+| `team add`            | Add new team (interactive)         | `tinyclaw team add`           |
+| `team show <id>`      | Show team configuration            | `tinyclaw team show dev`      |
+| `team remove <id>`    | Remove a team                      | `tinyclaw team remove dev`    |
+| `team visualize [id]` | Live TUI dashboard for team chains | `tinyclaw team visualize dev` |
 
 ### Configuration Commands
 
@@ -150,13 +163,13 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 
 Use sender pairing to control who can message your agents.
 
-| Command                                      | Description                                               | Example                                     |
-| -------------------------------------------- | --------------------------------------------------------- | ------------------------------------------- |
-| `pairing pending`                            | Show pending sender approvals (with pairing codes)        | `tinyclaw pairing pending`                  |
-| `pairing approved`                           | Show approved senders                                     | `tinyclaw pairing approved`                 |
-| `pairing list`                               | Show both pending and approved senders                    | `tinyclaw pairing list`                     |
-| `pairing approve <code>`                     | Move a sender from pending to approved by code            | `tinyclaw pairing approve ABCD1234`         |
-| `pairing unpair <channel> <sender_id>`       | Remove an approved sender from the allowlist              | `tinyclaw pairing unpair telegram 1234567`  |
+| Command                                | Description                                        | Example                                    |
+| -------------------------------------- | -------------------------------------------------- | ------------------------------------------ |
+| `pairing pending`                      | Show pending sender approvals (with pairing codes) | `tinyclaw pairing pending`                 |
+| `pairing approved`                     | Show approved senders                              | `tinyclaw pairing approved`                |
+| `pairing list`                         | Show both pending and approved senders             | `tinyclaw pairing list`                    |
+| `pairing approve <code>`               | Move a sender from pending to approved by code     | `tinyclaw pairing approve ABCD1234`        |
+| `pairing unpair <channel> <sender_id>` | Remove an approved sender from the allowlist       | `tinyclaw pairing unpair telegram 1234567` |
 
 Pairing behavior:
 
@@ -171,9 +184,11 @@ Pairing behavior:
 | `update` | Update TinyClaw to latest version | `tinyclaw update` |
 
 > **Note:** If you are on v0.0.1 or v0.0.2, the update script was broken. Please re-install instead:
+>
 > ```bash
 > curl -fsSL https://raw.githubusercontent.com/jlia0/tinyclaw/main/scripts/remote-install.sh | bash
 > ```
+>
 > Your settings and user data will be preserved.
 
 <details>
@@ -214,18 +229,18 @@ export TINYCLAW_SKIP_UPDATE_CHECK=1
 
 These commands work in Discord, Telegram, and WhatsApp:
 
-| Command             | Description                                  | Example                              |
-| ------------------- | -------------------------------------------- | ------------------------------------ |
-| `@agent_id message` | Route message to specific agent              | `@coder fix the bug`                 |
-| `@team_id message`  | Route message to team leader                 | `@dev fix the auth bug`              |
-| `/agent`            | List all available agents                    | `/agent`                             |
-| `/team`             | List all available teams                     | `/team`                              |
-| `@agent_id /reset`  | Reset specific agent conversation            | `@coder /reset`                      |
-| `/reset`            | Reset conversation (WhatsApp/global)         | `/reset` or `!reset`                 |
-| `message`           | Send to default agent (no prefix)            | `help me with this`                  |
+| Command             | Description                          | Example                 |
+| ------------------- | ------------------------------------ | ----------------------- |
+| `@agent_id message` | Route message to specific agent      | `@coder fix the bug`    |
+| `@team_id message`  | Route message to team leader         | `@dev fix the auth bug` |
+| `/agent`            | List all available agents            | `/agent`                |
+| `/team`             | List all available teams             | `/team`                 |
+| `@agent_id /reset`  | Reset specific agent conversation    | `@coder /reset`         |
+| `/reset`            | Reset conversation (WhatsApp/global) | `/reset` or `!reset`    |
+| `message`           | Send to default agent (no prefix)    | `help me with this`     |
 
 **Note:** The `@agent_id` routing prefix requires a space after it (e.g., `@coder fix` not `@coderfix`).
-  
+
 **Access control note:** before routing, channel clients apply sender pairing allowlist checks.
 
 ## 🤖 Using Agents
