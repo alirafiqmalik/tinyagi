@@ -103,7 +103,8 @@ jobs:
         id: release_notes
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          TAG_MESSAGE=$(git tag -l --format='%(contents)' "$VERSION")
+          # Use for-each-ref to reliably get the annotated tag message (not the commit message)
+          TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$VERSION")
           if [ -n "$TAG_MESSAGE" ]; then
             echo "$TAG_MESSAGE" > release_notes.md
           else
