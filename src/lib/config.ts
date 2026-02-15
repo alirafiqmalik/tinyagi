@@ -14,6 +14,7 @@ export const LOG_FILE = path.join(TINYCLAW_HOME, 'logs/queue.log');
 export const SETTINGS_FILE = path.join(TINYCLAW_HOME, 'settings.json');
 export const EVENTS_DIR = path.join(TINYCLAW_HOME, 'events');
 export const CHATS_DIR = path.join(TINYCLAW_HOME, 'chats');
+export const FILES_DIR = path.join(TINYCLAW_HOME, 'files');
 
 export function getSettings(): Settings {
     try {
