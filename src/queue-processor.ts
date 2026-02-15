@@ -19,7 +19,7 @@ import path from 'path';
 import { MessageData, ResponseData, QueueFile, ChainStep, Conversation, TeamConfig } from './lib/types';
 import {
     QUEUE_INCOMING, QUEUE_OUTGOING, QUEUE_PROCESSING,
-    LOG_FILE, EVENTS_DIR, CHATS_DIR,
+    LOG_FILE, EVENTS_DIR, CHATS_DIR, FILES_DIR,
     getSettings, getAgents, getTeams
 } from './lib/config';
 import { log, emitEvent } from './lib/logging';
