@@ -92,9 +92,24 @@ build_cron_command() {
     # Escape double quotes in the message for JSON safety
     local escaped_message="${message//\"/\\\"}"
 
-    # The cron command must be a single line for crontab.
-    # Uses printf to write a JSON file into QUEUE_INCOMING each time it fires.
-    printf '%s' "/bin/bash -c 'QUEUE_INCOMING=\"$QUEUE_INCOMING\"; MSG_ID=\"${label}_\$(date +\\%s)_\$\$\"; printf '\\''{ \"channel\": \"$channel\", \"sender\": \"$sender\", \"senderId\": \"${TAG_PREFIX}:${label}\", \"message\": \"@${agent} ${escaped_message}\", \"timestamp\": %s000, \"messageId\": \"%s\" }'\\'' \"\$(date +%s)\" \"\$MSG_ID\" > \"\$QUEUE_INCOMING/\${MSG_ID}.json\"'"
+    # Write a per-schedule helper script that cron will call.
+    # This avoids all crontab % escaping issues by keeping logic in a file.
+    local helper_dir="$TINYCLAW_HOME/schedule-jobs"
+    mkdir -p "$helper_dir"
+    local helper="$helper_dir/${label}.sh"
+
+    cat > "$helper" <<HELPER
+#!/bin/bash
+QUEUE_INCOMING="$QUEUE_INCOMING"
+TS=\$(date +%s)
+MSG_ID="${label}_\${TS}_\$\$"
+cat > "\$QUEUE_INCOMING/\${MSG_ID}.json" <<JSON
+{"channel":"$channel","sender":"$sender","senderId":"${TAG_PREFIX}:${label}","message":"@${agent} ${escaped_message}","timestamp":\${TS}000,"messageId":"\$MSG_ID"}
+JSON
+HELPER
+    chmod +x "$helper"
+
+    printf '%s' "$helper"
 }
 
 # ────────────────────────────────────────────
