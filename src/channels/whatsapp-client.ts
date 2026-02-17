@@ -179,7 +179,7 @@ const client = new Client({
         dataPath: SESSION_DIR
     }),
     puppeteer: {
-        headless: true,
+        headless: 'new' as any,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
