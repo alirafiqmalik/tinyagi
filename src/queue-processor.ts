@@ -31,7 +31,10 @@ import {
     pruneAckedResponses, pruneCompletedMessages, closeQueueDb, queueEvents, DbMessage,
 } from './lib/db';
 import { handleLongResponse, collectFiles } from './lib/response';
-import { conversations, MAX_CONVERSATION_MESSAGES, enqueueInternalMessage, completeConversation } from './lib/conversation';
+import {
+    conversations, MAX_CONVERSATION_MESSAGES, enqueueInternalMessage, completeConversation,
+    withConversationLock, incrementPending, decrementPending,
+} from './lib/conversation';
 
 // Ensure directories exist
 [FILES_DIR, path.dirname(LOG_FILE), CHATS_DIR].forEach(dir => {
@@ -240,7 +243,7 @@ async function processMessage(dbMsg: DbMessage): Promise<void> {
 
         if (teammateMentions.length > 0 && conv.totalMessages < conv.maxMessages) {
             // Enqueue internal messages for each mention
-            conv.pending += teammateMentions.length;
+            incrementPending(conv, teammateMentions.length);
             conv.outgoingMentions.set(agentId, teammateMentions.length);
             for (const mention of teammateMentions) {
                 log('INFO', `@${agentId} → @${mention.teammateId}`);
@@ -258,14 +261,16 @@ async function processMessage(dbMsg: DbMessage): Promise<void> {
             log('WARN', `Conversation ${conv.id} hit max messages (${conv.maxMessages}) — not enqueuing further mentions`);
         }
 
-        // This branch is done
-        conv.pending--;
+        // This branch is done - use atomic decrement with locking
+        await withConversationLock(conv.id, async () => {
+            const shouldComplete = decrementPending(conv);
 
-        if (conv.pending === 0) {
-            completeConversation(conv);
-        } else {
-            log('INFO', `Conversation ${conv.id}: ${conv.pending} branch(es) still pending`);
-        }
+            if (shouldComplete) {
+                completeConversation(conv);
+            } else {
+                log('INFO', `Conversation ${conv.id}: ${conv.pending} branch(es) still pending`);
+            }
+        });
 
         // Mark message as completed in DB
         dbCompleteMessage(dbMsg.id);

@@ -1,5 +1,6 @@
 import path from 'path';
 import { AgentConfig, TeamConfig } from './types';
+import { log } from './logging';
 
 /**
  * Find the first team that contains the given agent.
@@ -24,12 +25,27 @@ export function isTeammate(
     agents: Record<string, AgentConfig>
 ): boolean {
     const team = teams[teamId];
-    if (!team) return false;
-    return (
-        mentionedId !== currentAgentId &&
-        team.agents.includes(mentionedId) &&
-        !!agents[mentionedId]
-    );
+    if (!team) {
+        log('WARN', `isTeammate check failed: Team '${teamId}' not found`);
+        return false;
+    }
+
+    if (mentionedId === currentAgentId) {
+        log('DEBUG', `isTeammate check failed: Self-mention (agent: ${mentionedId})`);
+        return false;
+    }
+
+    if (!team.agents.includes(mentionedId)) {
+        log('WARN', `isTeammate check failed: Agent '${mentionedId}' not in team '${teamId}' (members: ${team.agents.join(', ')})`);
+        return false;
+    }
+
+    if (!agents[mentionedId]) {
+        log('WARN', `isTeammate check failed: Agent '${mentionedId}' not found in agents config`);
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -46,13 +62,12 @@ export function extractTeammateMentions(
     const results: { teammateId: string; message: string }[] = [];
     const seen = new Set<string>();
 
-    // TODO: Support cross-team communication — allow agents to mention agents
-    // on other teams or use [@team_id: message] to route to another team's leader.
-
     // Tag format: [@agent_id: message] or [@agent1,agent2: message]
-    const tagRegex = /\[@(\S+?):\s*([\s\S]*?)\]/g;
+    const tagRegex = /\[@([^\]]+?):\s*([\s\S]*?)\]/g;
+
     // Strip all [@teammate: ...] tags from the full response to get shared context
     const sharedContext = response.replace(tagRegex, '').trim();
+
     let tagMatch: RegExpExecArray | null;
     while ((tagMatch = tagRegex.exec(response)) !== null) {
         const directMessage = tagMatch[2].trim();
@@ -88,31 +103,34 @@ export function parseAgentRouting(
     agents: Record<string, AgentConfig>,
     teams: Record<string, TeamConfig> = {}
 ): { agentId: string; message: string; isTeam?: boolean } {
-    const match = rawMessage.match(/^@(\S+)\s+([\s\S]*)$/);
+    // Match @agent_id, optionally preceded by [channel/sender]: prefix from messages API
+    const match = rawMessage.match(/^(\[[^\]]*\]:\s*)?@(\S+)\s+([\s\S]*)$/);
     if (match) {
-        const candidateId = match[1].toLowerCase();
+        const prefix = match[1] || '';
+        const candidateId = match[2].toLowerCase();
+        const message = prefix + match[3];
 
         // Check agent IDs
         if (agents[candidateId]) {
-            return { agentId: candidateId, message: match[2] };
+            return { agentId: candidateId, message };
         }
 
         // Check team IDs — resolve to leader agent
         if (teams[candidateId]) {
-            return { agentId: teams[candidateId].leader_agent, message: match[2], isTeam: true };
+            return { agentId: teams[candidateId].leader_agent, message, isTeam: true };
         }
 
         // Match by agent name (case-insensitive)
         for (const [id, config] of Object.entries(agents)) {
             if (config.name.toLowerCase() === candidateId) {
-                return { agentId: id, message: match[2] };
+                return { agentId: id, message };
             }
         }
 
         // Match by team name (case-insensitive)
         for (const [, config] of Object.entries(teams)) {
             if (config.name.toLowerCase() === candidateId) {
-                return { agentId: config.leader_agent, message: match[2], isTeam: true };
+                return { agentId: config.leader_agent, message, isTeam: true };
             }
         }
     }

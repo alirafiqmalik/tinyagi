@@ -11,6 +11,67 @@ export const conversations = new Map<string, Conversation>();
 
 export const MAX_CONVERSATION_MESSAGES = 50;
 
+// Per-conversation locks to prevent race conditions
+const conversationLocks = new Map<string, Promise<void>>();
+
+/**
+ * Execute a function with exclusive access to a conversation.
+ * This prevents race conditions when multiple agents complete simultaneously.
+ */
+export async function withConversationLock<T>(
+    convId: string,
+    fn: () => Promise<T>
+): Promise<T> {
+    const currentLock = conversationLocks.get(convId) || Promise.resolve();
+
+    let resolveLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+        resolveLock = resolve;
+    });
+
+    const newLock = currentLock.then(async () => {
+        try {
+            return await fn();
+        } finally {
+            resolveLock();
+        }
+    });
+
+    conversationLocks.set(convId, lockPromise);
+
+    newLock.finally(() => {
+        if (conversationLocks.get(convId) === lockPromise) {
+            conversationLocks.delete(convId);
+        }
+    });
+
+    return newLock;
+}
+
+/**
+ * Safely increment the pending counter for a conversation.
+ */
+export function incrementPending(conv: Conversation, count: number): void {
+    conv.pending += count;
+    log('DEBUG', `Conversation ${conv.id}: pending incremented to ${conv.pending} (+${count})`);
+}
+
+/**
+ * Safely decrement the pending counter and check if conversation should complete.
+ * Returns true if pending reached 0 and conversation should complete.
+ */
+export function decrementPending(conv: Conversation): boolean {
+    conv.pending--;
+    log('DEBUG', `Conversation ${conv.id}: pending decremented to ${conv.pending}`);
+
+    if (conv.pending < 0) {
+        log('WARN', `Conversation ${conv.id}: pending went negative (${conv.pending}), resetting to 0`);
+        conv.pending = 0;
+    }
+
+    return conv.pending === 0;
+}
+
 /**
  * Enqueue an internal (agent-to-agent) message into the SQLite queue.
  */
