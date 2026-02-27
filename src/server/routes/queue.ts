@@ -53,6 +53,7 @@ export function createQueueRoutes(conversations: Map<string, Conversation>) {
             messageId: r.message_id,
             agent: r.agent,
             files: r.files ? JSON.parse(r.files) : undefined,
+            metadata: r.metadata ? JSON.parse(r.metadata) : undefined,
         })));
     });
 

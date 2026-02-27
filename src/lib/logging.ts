@@ -11,6 +11,7 @@ export function log(level: string, message: string): void {
 /**
  * Pluggable event listeners.  The API server registers a listener so that
  * every event emitted by the queue processor is also broadcast over SSE.
+ * The plugin system also registers a listener for plugin event handlers.
  */
 type EventListener = (type: string, data: Record<string, unknown>) => void;
 const eventListeners: EventListener[] = [];
@@ -21,7 +22,7 @@ export function onEvent(listener: EventListener): void {
 }
 
 /**
- * Emit a structured event — dispatched to in-memory listeners (e.g. SSE broadcast).
+ * Emit a structured event — dispatched to in-memory listeners (e.g. SSE broadcast, plugins).
  */
 export function emitEvent(type: string, data: Record<string, unknown>): void {
     for (const listener of eventListeners) {

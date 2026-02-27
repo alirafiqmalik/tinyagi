@@ -41,6 +41,7 @@ export interface DbResponse {
     original_message: string;
     agent: string | null;
     files: string | null;         // JSON array
+    metadata: string | null;      // JSON object (plugin hook metadata)
     status: 'pending' | 'acked';
     created_at: number;
     acked_at: number | null;
@@ -67,6 +68,7 @@ export interface EnqueueResponseData {
     messageId: string;
     agent?: string;
     files?: string[];
+    metadata?: Record<string, unknown>;
 }
 
 // ── Singleton ────────────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ export function initQueueDb(): void {
             original_message TEXT NOT NULL,
             agent TEXT,
             files TEXT,
+            metadata TEXT,
             status TEXT NOT NULL DEFAULT 'pending',
             created_at INTEGER NOT NULL,
             acked_at INTEGER
@@ -131,6 +134,12 @@ export function initQueueDb(): void {
     db.exec('DROP INDEX IF EXISTS idx_messages_status');
     db.exec('DROP INDEX IF EXISTS idx_messages_agent');
     db.exec('DROP TABLE IF EXISTS events');
+
+    // Migrate: add metadata column to responses if missing
+    const cols = db.prepare("PRAGMA table_info(responses)").all() as { name: string }[];
+    if (!cols.some(c => c.name === 'metadata')) {
+        db.exec('ALTER TABLE responses ADD COLUMN metadata TEXT');
+    }
 }
 
 function getDb(): Database.Database {
@@ -217,8 +226,8 @@ export function enqueueResponse(data: EnqueueResponseData): number {
     const d = getDb();
     const now = Date.now();
     const result = d.prepare(`
-        INSERT INTO responses (message_id, channel, sender, sender_id, message, original_message, agent, files, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        INSERT INTO responses (message_id, channel, sender, sender_id, message, original_message, agent, files, metadata, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
     `).run(
         data.messageId,
         data.channel,
@@ -228,6 +237,7 @@ export function enqueueResponse(data: EnqueueResponseData): number {
         data.originalMessage,
         data.agent ?? null,
         data.files ? JSON.stringify(data.files) : null,
+        data.metadata ? JSON.stringify(data.metadata) : null,
         now,
     );
     return result.lastInsertRowid as number;

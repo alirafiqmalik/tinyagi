@@ -136,16 +136,12 @@ async function sendMessage(argv: string[]): Promise<void> {
         ? filesRaw.split(',').map(f => f.trim()).filter(Boolean)
         : undefined;
 
-    const truncatedMessage = message.length > 4000
-        ? message.substring(0, 3900) + '\n\n[Message truncated...]'
-        : message;
-
     // POST to API
     const body: Record<string, unknown> = {
         channel,
         sender,
         senderId,
-        message: truncatedMessage,
+        message,
         ...(agent ? { agent } : {}),
         ...(files && files.length > 0 ? { files } : {}),
     };
@@ -168,7 +164,7 @@ async function sendMessage(argv: string[]): Promise<void> {
     console.log(`  channel:  ${channel}`);
     console.log(`  senderId: ${senderId}`);
     console.log(`  sender:   ${sender}`);
-    console.log(`  length:   ${truncatedMessage.length} chars`);
+    console.log(`  length:   ${message.length} chars`);
 }
 
 // ---------------------------------------------------------------------------

@@ -174,8 +174,8 @@ async function sendTelegramMessage(
 ): Promise<void> {
     try {
         await bot.sendMessage(chatId, text, {
-            ...options,
             parse_mode: 'Markdown',
+            ...options,
         });
     } catch (error) {
         const message = (error as Error).message || '';
@@ -523,15 +523,17 @@ async function checkOutgoingQueue(): Promise<void> {
                     // Split message if needed (Telegram 4096 char limit)
                     if (responseText) {
                         const chunks = splitMessage(responseText);
+                        const parseMode = resp.metadata?.parseMode as TelegramBot.ParseMode | undefined;
 
                         if (chunks.length > 0) {
-                            await sendTelegramMessage(targetChatId, chunks[0]!, pending
+                            const opts: TelegramBot.SendMessageOptions = pending
                                 ? { reply_to_message_id: pending.messageId }
-                                : {},
-                            );
+                                : {};
+                            if (parseMode) opts.parse_mode = parseMode;
+                            await sendTelegramMessage(targetChatId, chunks[0]!, opts);
                         }
                         for (let i = 1; i < chunks.length; i++) {
-                            await sendTelegramMessage(targetChatId, chunks[i]!);
+                            await sendTelegramMessage(targetChatId, chunks[i]!, parseMode ? { parse_mode: parseMode } : {});
                         }
                     }
 

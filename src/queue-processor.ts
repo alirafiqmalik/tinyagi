@@ -24,6 +24,7 @@ import {
 import { log, emitEvent } from './lib/logging';
 import { parseAgentRouting, findTeamForAgent, getAgentResetFlag, extractTeammateMentions } from './lib/routing';
 import { invokeAgent } from './lib/invoke';
+import { loadPlugins, runIncomingHooks, runOutgoingHooks } from './lib/plugins';
 import { startApiServer } from './server';
 import {
     initQueueDb, claimNextMessage, completeMessage as dbCompleteMessage,
@@ -155,6 +156,9 @@ async function processMessage(dbMsg: DbMessage): Promise<void> {
             }
         }
 
+        // Run incoming hooks
+        ({ text: message } = await runIncomingHooks(message, { channel, sender, messageId, originalMessage: rawMessage }));
+
         // Invoke agent
         emitEvent('chain_step_start', { agentId, agentName: agent.name, fromAgent: messageData.fromAgent || null });
         let response: string;
@@ -181,8 +185,11 @@ async function processMessage(dbMsg: DbMessage): Promise<void> {
                 finalResponse = finalResponse.replace(/\[send_file:\s*[^\]]+\]/g, '').trim();
             }
 
+            // Run outgoing hooks
+            const { text: hookedResponse, metadata } = await runOutgoingHooks(finalResponse, { channel, sender, messageId, originalMessage: rawMessage });
+
             // Handle long responses — send as file attachment
-            const { message: responseMessage, files: allFiles } = handleLongResponse(finalResponse, outboundFiles);
+            const { message: responseMessage, files: allFiles } = handleLongResponse(hookedResponse, outboundFiles);
 
             enqueueResponse({
                 channel,
@@ -193,6 +200,7 @@ async function processMessage(dbMsg: DbMessage): Promise<void> {
                 messageId,
                 agent: agentId,
                 files: allFiles.length > 0 ? allFiles : undefined,
+                metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
             });
 
             log('INFO', `✓ Response ready [${channel}] ${sender} via agent:${agentId} (${finalResponse.length} chars)`);
@@ -356,6 +364,11 @@ if (recovered > 0) {
 
 // Start the API server (passes conversations for queue status reporting)
 const apiServer = startApiServer(conversations);
+
+// Load plugins (async IIFE to avoid top-level await)
+(async () => {
+    await loadPlugins();
+})();
 
 log('INFO', 'Queue processor started (SQLite-backed)');
 logAgentConfig();
