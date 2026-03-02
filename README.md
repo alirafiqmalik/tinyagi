@@ -49,7 +49,7 @@ We are actively looking for contributors. Please reach out.
 - macOS, Linux and Windows (WSL2)
 - Node.js v18+
 - tmux, jq
-- Bash 4.0+ (macOS: `brew install bash`)
+- Bash 3.2+
 - [Claude Code CLI](https://claude.com/claude-code) (for Anthropic provider)
 - [Codex CLI](https://docs.openai.com/codex) (for OpenAI provider)
 
@@ -581,7 +581,6 @@ tinyclaw logs all
 
 **Common issues:**
 
-- Bash version error → Install bash 4.0+: `brew install bash`
 - WhatsApp not connecting → Reset auth: `tinyclaw channels reset whatsapp`
 - Messages stuck → Clear queue: `rm -rf .tinyclaw/queue/processing/*`
 - Agent not found → Check: `tinyclaw agent list`

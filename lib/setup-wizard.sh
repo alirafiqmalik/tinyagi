@@ -18,26 +18,29 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # --- Channel registry ---
-# To add a new channel, add its ID here and fill in the config arrays below.
 ALL_CHANNELS=(telegram discord whatsapp)
 
-declare -A CHANNEL_DISPLAY=(
-    [telegram]="Telegram"
-    [discord]="Discord"
-    [whatsapp]="WhatsApp"
-)
-declare -A CHANNEL_TOKEN_KEY=(
-    [discord]="discord_bot_token"
-    [telegram]="telegram_bot_token"
-)
-declare -A CHANNEL_TOKEN_PROMPT=(
-    [discord]="Enter your Discord bot token:"
-    [telegram]="Enter your Telegram bot token:"
-)
-declare -A CHANNEL_TOKEN_HELP=(
-    [discord]="(Get one at: https://discord.com/developers/applications)"
-    [telegram]="(Create a bot via @BotFather on Telegram to get a token)"
-)
+_sw_channel_display() {
+    case "$1" in
+        telegram) echo "Telegram" ;; discord) echo "Discord" ;; whatsapp) echo "WhatsApp" ;;
+    esac
+}
+_sw_channel_token_key() {
+    case "$1" in
+        discord) echo "discord_bot_token" ;; telegram) echo "telegram_bot_token" ;;
+    esac
+}
+_sw_channel_token_prompt() {
+    case "$1" in
+        discord) echo "Enter your Discord bot token:" ;; telegram) echo "Enter your Telegram bot token:" ;;
+    esac
+}
+_sw_channel_token_help() {
+    case "$1" in
+        discord) echo "(Get one at: https://discord.com/developers/applications)" ;;
+        telegram) echo "(Create a bot via @BotFather on Telegram to get a token)" ;;
+    esac
+}
 
 # Channel selection - simple checklist
 echo "Which messaging channels (Telegram, Discord, WhatsApp) do you want to enable?"
@@ -45,10 +48,10 @@ echo ""
 
 ENABLED_CHANNELS=()
 for ch in "${ALL_CHANNELS[@]}"; do
-    read -rp "  Enable ${CHANNEL_DISPLAY[$ch]}? [y/N]: " choice
+    read -rp "  Enable $(_sw_channel_display "$ch")? [y/N]: " choice
     if [[ "$choice" =~ ^[yY] ]]; then
         ENABLED_CHANNELS+=("$ch")
-        echo -e "    ${GREEN}✓ ${CHANNEL_DISPLAY[$ch]} enabled${NC}"
+        echo -e "    ${GREEN}✓ $(_sw_channel_display "$ch") enabled${NC}"
     fi
 done
 echo ""
@@ -59,24 +62,39 @@ if [ ${#ENABLED_CHANNELS[@]} -eq 0 ]; then
 fi
 
 # Collect tokens for channels that need them
-declare -A TOKENS
+# Use parallel arrays for bash 3.2 compatibility
+_TOKEN_CHANNEL_KEYS=()
+_TOKEN_CHANNEL_VALS=()
+
 for ch in "${ENABLED_CHANNELS[@]}"; do
-    token_key="${CHANNEL_TOKEN_KEY[$ch]:-}"
+    token_key="$(_sw_channel_token_key "$ch")"
     if [ -n "$token_key" ]; then
-        echo "${CHANNEL_TOKEN_PROMPT[$ch]}"
-        echo -e "${YELLOW}${CHANNEL_TOKEN_HELP[$ch]}${NC}"
+        echo "$(_sw_channel_token_prompt "$ch")"
+        echo -e "${YELLOW}$(_sw_channel_token_help "$ch")${NC}"
         echo ""
         read -rp "Token: " token_value
 
         if [ -z "$token_value" ]; then
-            echo -e "${RED}${CHANNEL_DISPLAY[$ch]} bot token is required${NC}"
+            echo -e "${RED}$(_sw_channel_display "$ch") bot token is required${NC}"
             exit 1
         fi
-        TOKENS[$ch]="$token_value"
-        echo -e "${GREEN}✓ ${CHANNEL_DISPLAY[$ch]} token saved${NC}"
+        _TOKEN_CHANNEL_KEYS+=("$ch")
+        _TOKEN_CHANNEL_VALS+=("$token_value")
+        echo -e "${GREEN}✓ $(_sw_channel_display "$ch") token saved${NC}"
         echo ""
     fi
 done
+
+# Helper to look up a collected token
+_get_token() {
+    local ch="$1" i
+    for i in "${!_TOKEN_CHANNEL_KEYS[@]}"; do
+        if [ "${_TOKEN_CHANNEL_KEYS[$i]}" = "$ch" ]; then
+            echo "${_TOKEN_CHANNEL_VALS[$i]}"
+            return
+        fi
+    done
+}
 
 # Provider selection
 echo "Which AI provider?"
@@ -330,8 +348,8 @@ done
 CHANNELS_JSON="${CHANNELS_JSON}]"
 
 # Build channel configs with tokens
-DISCORD_TOKEN="${TOKENS[discord]:-}"
-TELEGRAM_TOKEN="${TOKENS[telegram]:-}"
+DISCORD_TOKEN="$(_get_token discord)"
+TELEGRAM_TOKEN="$(_get_token telegram)"
 
 # Write settings.json with layered structure
 # Use jq to build valid JSON to avoid escaping issues with agent prompts

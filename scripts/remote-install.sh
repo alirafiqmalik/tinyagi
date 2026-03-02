@@ -67,18 +67,6 @@ if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     exit 1
 fi
 
-# Check bash version (TinyClaw requires bash 4+ for associative arrays)
-if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
-    echo -e "${YELLOW}⚠ bash ${BASH_VERSION} detected — TinyClaw requires bash 4.0+${NC}"
-    if [ "$(uname)" = "Darwin" ]; then
-        echo "  macOS ships with bash 3.2. Install a newer version:"
-        echo "    brew install bash"
-    else
-        echo "  Please upgrade bash before running TinyClaw."
-    fi
-    echo ""
-fi
-
 echo -e "${GREEN}✓ All dependencies found${NC}"
 echo ""
 

@@ -37,7 +37,7 @@ logs() {
 
     # Check known channels (by id or alias)
     for ch in "${ALL_CHANNELS[@]}"; do
-        if [ "$target" = "$ch" ] || [ "$target" = "${CHANNEL_ALIAS[$ch]:-}" ]; then
+        if [ "$target" = "$ch" ] || [ "$target" = "$(channel_alias "$ch")" ]; then
             tail -f "$LOG_DIR/${ch}.log"
             return
         fi
@@ -60,7 +60,8 @@ logs() {
 # Reset a channel's authentication
 channels_reset() {
     local ch="$1"
-    local display="${CHANNEL_DISPLAY[$ch]:-}"
+    local display
+    display="$(channel_display "$ch")"
 
     if [ -z "$display" ]; then
         local channel_names
@@ -85,7 +86,8 @@ channels_reset() {
     fi
 
     # Token-based channels
-    local token_key="${CHANNEL_TOKEN_KEY[$ch]:-}"
+    local token_key
+    token_key="$(channel_token_key "$ch")"
     if [ -n "$token_key" ]; then
         echo ""
         echo "To reset ${display}, run the setup wizard to update your bot token:"
