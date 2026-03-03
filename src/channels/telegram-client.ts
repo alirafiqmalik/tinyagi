@@ -78,6 +78,7 @@ function buildUniqueFilePath(dir: string, preferredName: string): string {
 const pendingMessages = new Map<string, PendingMessage>();
 let processingOutgoingQueue = false;
 let lastPollingActivity = Date.now();
+let pollingRestartInProgress = false;
 
 // Logger
 function log(level: string, message: string): void {
@@ -584,36 +585,63 @@ setInterval(() => {
     }
 }, 4000);
 
+// Restart polling with proper cleanup to avoid duplicate polling loops
+async function restartPolling(reason: string, delayMs = 5000): Promise<void> {
+    if (pollingRestartInProgress) {
+        log('INFO', `Polling restart already in progress, skipping (${reason})`);
+        return;
+    }
+    pollingRestartInProgress = true;
+    log('WARN', `${reason} — stopping polling, will restart in ${delayMs / 1000}s...`);
+
+    try {
+        await bot.stopPolling();
+    } catch (e) {
+        log('WARN', `stopPolling error (ignored): ${(e as Error).message}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    try {
+        log('INFO', `Restarting polling (${reason})...`);
+        await bot.startPolling();
+        lastPollingActivity = Date.now();
+        log('INFO', 'Polling restarted successfully');
+    } catch (e) {
+        log('ERROR', `Failed to restart polling: ${(e as Error).message}`);
+    } finally {
+        pollingRestartInProgress = false;
+    }
+}
+
 // Handle polling errors with automatic recovery
 bot.on('polling_error', (error: Error) => {
     log('ERROR', `Polling error: ${error.message}`);
 
-    // ETELEGRAM 409 = another instance running; EFATAL = unrecoverable
+    // ETELEGRAM 409 = another instance running (stale connection after sleep)
+    // EFATAL = unrecoverable
     if (error.message.includes('EFATAL') || error.message.includes('409')) {
-        log('WARN', 'Fatal polling error detected, restarting polling in 5s...');
-        bot.stopPolling();
-        setTimeout(() => {
-            log('INFO', 'Restarting polling after fatal error...');
-            bot.startPolling();
-            lastPollingActivity = Date.now();
-        }, 5000);
+        restartPolling('Fatal polling error detected', 10000);
     }
 });
 
-// Track polling activity — any message or polling_error means polling is alive
+// Track polling activity — any event from the bot means polling is alive
 bot.on('message', () => { lastPollingActivity = Date.now(); });
 
-// Watchdog: if no polling activity for 2 minutes, restart polling
-setInterval(() => {
+// Watchdog: if no polling activity for 2 minutes, verify connectivity before restarting
+setInterval(async () => {
     const silentMs = Date.now() - lastPollingActivity;
     if (silentMs > 2 * 60 * 1000) {
-        log('WARN', `No polling activity for ${Math.round(silentMs / 1000)}s, restarting polling...`);
-        bot.stopPolling();
-        setTimeout(() => {
-            bot.startPolling();
+        // Check if the bot can actually reach Telegram before deciding polling is dead
+        try {
+            await bot.getMe();
+            // API works fine — polling is just idle (no messages). Reset timer.
             lastPollingActivity = Date.now();
-            log('INFO', 'Polling restarted by watchdog');
-        }, 2000);
+            log('INFO', `Watchdog: no messages for ${Math.round(silentMs / 1000)}s but API reachable, polling is healthy`);
+        } catch {
+            // API unreachable — polling is actually broken, restart it
+            restartPolling(`No polling activity for ${Math.round(silentMs / 1000)}s and API unreachable (watchdog)`, 5000);
+        }
     }
 }, 30000);
 
