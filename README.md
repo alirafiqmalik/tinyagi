@@ -292,6 +292,7 @@ These commands work in Discord, Telegram, and WhatsApp:
 | `/team`             | List all available teams             | `/team`                 |
 | `@agent_id /reset`  | Reset specific agent conversation    | `@coder /reset`         |
 | `/reset`            | Reset conversation (WhatsApp/global) | `/reset` or `!reset`    |
+| `/restart`          | Restart TinyClaw process             | `/restart`              |
 | `message`           | Send to default agent (no prefix)    | `help me with this`     |
 
 **Note:** The `@agent_id` routing prefix requires a space after it (e.g., `@coder fix` not `@coderfix`).

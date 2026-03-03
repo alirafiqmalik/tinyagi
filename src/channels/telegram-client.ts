@@ -269,6 +269,7 @@ bot.getMe().then(async (me: TelegramBot.User) => {
         { command: 'agent', description: 'List available agents' },
         { command: 'team', description: 'List available teams' },
         { command: 'reset', description: 'Reset conversation history' },
+        { command: 'restart', description: 'Restart TinyClaw' },
     ]).catch((err: Error) => log('WARN', `Failed to register commands: ${err.message}`));
 
     log('INFO', 'Listening for messages...');
@@ -423,6 +424,17 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                     reply_to_message_id: msg.message_id,
                 });
             }
+            return;
+        }
+
+        // Check for restart command
+        if (messageText.trim().match(/^[!/]restart$/i)) {
+            log('INFO', 'Restart command received');
+            await bot.sendMessage(msg.chat.id, 'Restarting TinyClaw...', {
+                reply_to_message_id: msg.message_id,
+            });
+            const { exec } = require('child_process');
+            exec(`"${path.join(SCRIPT_DIR, 'tinyclaw.sh')}" restart`, { detached: true, stdio: 'ignore' });
             return;
         }
 

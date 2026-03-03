@@ -320,6 +320,15 @@ client.on(Events.MessageCreate, async (message: Message) => {
             return;
         }
 
+        // Check for restart command
+        if (message.content.trim().match(/^[!/]restart$/i)) {
+            log('INFO', 'Restart command received');
+            await message.reply('Restarting TinyClaw...');
+            const { exec } = require('child_process');
+            exec(`"${path.join(SCRIPT_DIR, 'tinyclaw.sh')}" restart`, { detached: true, stdio: 'ignore' });
+            return;
+        }
+
         // Show typing indicator
         await (message.channel as DMChannel).sendTyping();
 
