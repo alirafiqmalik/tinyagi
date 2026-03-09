@@ -3,8 +3,9 @@ import path from 'path';
 import { Conversation } from './types';
 import { CHATS_DIR, getSettings, getAgents } from './config';
 import { log, emitEvent } from './logging';
-import { enqueueMessage, enqueueResponse } from './db';
+import { enqueueMessage, enqueueResponse, insertChatMessage } from './db';
 import { handleLongResponse, collectFiles } from './response';
+import { convertTagsToReadable } from './routing';
 
 // Active conversations — tracks in-flight team message passing
 export const conversations = new Map<string, Conversation>();
@@ -96,6 +97,40 @@ export function enqueueInternalMessage(
     log('INFO', `Enqueued internal message: @${fromAgent} → @${targetAgent}`);
 }
 
+// ── Team Chat Room ───────────────────────────────────────────────────────────
+
+/**
+ * Post a message to a team's chat room.
+ * Persists to chat_messages table and enqueues for every teammate in the team.
+ */
+export function postToChatRoom(
+    teamId: string,
+    fromAgent: string,
+    message: string,
+    teamAgents: string[],
+    originalData: { channel: string; sender: string; senderId?: string | null; messageId: string }
+): void {
+    // Persist to chat_messages table
+    insertChatMessage(teamId, fromAgent, message);
+
+    // Enqueue for every teammate (except the sender)
+    const chatMsg = `[Chat room #${teamId} — @${fromAgent}]:\n${message}`;
+    for (const agentId of teamAgents) {
+        if (agentId === fromAgent) continue;
+        const msgId = `chat_${teamId}_${fromAgent}_${agentId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        enqueueMessage({
+            channel: originalData.channel,
+            sender: originalData.sender,
+            senderId: originalData.senderId ?? undefined,
+            message: chatMsg,
+            messageId: msgId,
+            agent: agentId,
+            fromAgent,
+        });
+    }
+    log('DEBUG', `Chat room message: @${fromAgent} → #${teamId} (${teamAgents.length - 1} teammate(s))`);
+}
+
 /**
  * Complete a conversation: aggregate responses, write to outgoing queue, save chat history.
  */
@@ -169,7 +204,7 @@ export function completeConversation(conv: Conversation): void {
     }
 
     // Convert [@agent: ...] tags to readable format instead of stripping them
-    finalResponse = finalResponse.replace(/\[@(\S+?):\s*([\s\S]*?)\]/g, '→ @$1: $2').trim();
+    finalResponse = convertTagsToReadable(finalResponse);
 
     // Handle long responses — send as file attachment
     const { message: responseMessage, files: allFiles } = handleLongResponse(finalResponse, outboundFiles);
