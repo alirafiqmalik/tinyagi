@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Daemon lifecycle management for TinyClaw
-# Handles starting, stopping, restarting, and status checking
+# Daemon runtime for TinyClaw
+# Lifecycle (start/stop/restart/status), update checks, agent skills sync, log viewing
 
 # Start daemon
 start_daemon() {
@@ -378,4 +378,76 @@ status_daemon() {
     done
     echo "  Heartbeat: tail -f $LOG_DIR/heartbeat.log"
     echo "  Daemon:    tail -f $LOG_DIR/daemon.log"
+}
+
+# --- Agent skills management (called by start_daemon) ---
+
+# Ensure all agent workspaces have .agents/skills copied from SCRIPT_DIR
+ensure_agent_skills_links() {
+    local skills_src="$SCRIPT_DIR/.agents/skills"
+    [ -d "$skills_src" ] || return 0
+
+    local agents_dir="$WORKSPACE_PATH"
+    [ -d "$agents_dir" ] || return 0
+
+    local agent_ids
+    agent_ids=$(jq -r '(.agents // {}) | keys[]' "$SETTINGS_FILE" 2>/dev/null) || return 0
+
+    for agent_id in $agent_ids; do
+        local agent_dir="$agents_dir/$agent_id"
+        [ -d "$agent_dir" ] || continue
+
+        # Migrate: replace old symlinks with real directories
+        if [ -L "$agent_dir/.agents/skills" ]; then
+            rm "$agent_dir/.agents/skills"
+        fi
+        if [ -L "$agent_dir/.claude/skills" ]; then
+            rm "$agent_dir/.claude/skills"
+        fi
+
+        # Sync default skills into .agents/skills
+        # - Overwrites skills that exist in source (keeps them up to date)
+        # - Preserves agent-specific custom skills not in source
+        mkdir -p "$agent_dir/.agents/skills"
+        for skill_dir in "$skills_src"/*/; do
+            [ -d "$skill_dir" ] || continue
+            local skill_name
+            skill_name="$(basename "$skill_dir")"
+            # Always overwrite default skills with latest from source
+            rm -rf "$agent_dir/.agents/skills/$skill_name"
+            cp -r "$skill_dir" "$agent_dir/.agents/skills/$skill_name"
+        done
+
+        # Mirror .agents/skills into .claude/skills for Claude Code
+        mkdir -p "$agent_dir/.claude/skills"
+        cp -r "$agent_dir/.agents/skills/"* "$agent_dir/.claude/skills/" 2>/dev/null || true
+    done
+}
+
+# --- Log viewing ---
+
+# View logs (uses tail -f, requires terminal)
+logs() {
+    local target="${1:-}"
+
+    # Check known channels (by id or alias)
+    for ch in "${ALL_CHANNELS[@]}"; do
+        if [ "$target" = "$ch" ] || [ "$target" = "$(channel_alias "$ch")" ]; then
+            tail -f "$LOG_DIR/${ch}.log"
+            return
+        fi
+    done
+
+    # Built-in log types
+    case "$target" in
+        heartbeat|hb) tail -f "$LOG_DIR/heartbeat.log" ;;
+        daemon) tail -f "$LOG_DIR/daemon.log" ;;
+        queue) tail -f "$LOG_DIR/queue.log" ;;
+        all) tail -f "$LOG_DIR"/*.log ;;
+        *)
+            local channel_names
+            channel_names=$(IFS='|'; echo "${ALL_CHANNELS[*]}")
+            echo "Usage: $0 logs [$channel_names|heartbeat|daemon|queue|all]"
+            ;;
+    esac
 }
