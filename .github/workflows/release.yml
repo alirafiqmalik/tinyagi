@@ -71,22 +71,23 @@ jobs:
 
           mkdir -p "$BUNDLE_DIR"
 
-          # Copy necessary files
+          # Copy necessary directories
           cp -r bin/ "$BUNDLE_DIR/"
-          cp -r src/ "$BUNDLE_DIR/"
+          cp -r packages/ "$BUNDLE_DIR/"
           cp -r dist/ "$BUNDLE_DIR/"
           cp -r node_modules/ "$BUNDLE_DIR/"
           cp -r scripts/ "$BUNDLE_DIR/"
           cp -r lib/ "$BUNDLE_DIR/"
           cp -r docs/ "$BUNDLE_DIR/"
           cp -r .agents/ "$BUNDLE_DIR/"
+          cp -r tinyoffice/ "$BUNDLE_DIR/"
 
           cp tinyclaw.sh "$BUNDLE_DIR/"
 
+          # Copy root files
           cp package.json "$BUNDLE_DIR/"
           cp package-lock.json "$BUNDLE_DIR/"
           cp tsconfig.json "$BUNDLE_DIR/"
-          cp tsconfig.visualizer.json "$BUNDLE_DIR/"
           cp README.md "$BUNDLE_DIR/"
           cp AGENTS.md "$BUNDLE_DIR/"
           cp SOUL.md "$BUNDLE_DIR/"
@@ -100,7 +101,6 @@ jobs:
           chmod +x "$BUNDLE_DIR/scripts/uninstall.sh"
           chmod +x "$BUNDLE_DIR/scripts/bundle.sh"
           chmod +x "$BUNDLE_DIR/scripts/remote-install.sh"
-          chmod +x "$BUNDLE_DIR/lib/setup-wizard.sh"
           chmod +x "$BUNDLE_DIR/lib/heartbeat-cron.sh"
           chmod +x "$BUNDLE_DIR/lib/update.sh"
 
