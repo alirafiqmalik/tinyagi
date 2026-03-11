@@ -1,9 +1,21 @@
 import fs from 'fs';
 import path from 'path';
 import { Hono } from 'hono';
-import { Task, TaskStatus } from '@tinyclaw/core';
 import { TINYCLAW_HOME } from '@tinyclaw/core';
 import { log } from '@tinyclaw/core';
+
+type TaskStatus = 'backlog' | 'in_progress' | 'review' | 'done';
+
+interface Task {
+    id: string;
+    title: string;
+    description: string;
+    status: TaskStatus;
+    assignee: string;       // agent or team id, empty = unassigned
+    assigneeType: 'agent' | 'team' | '';
+    createdAt: number;
+    updatedAt: number;
+}
 
 const TASKS_FILE = path.join(TINYCLAW_HOME, 'tasks.json');
 

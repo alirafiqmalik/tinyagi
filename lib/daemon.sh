@@ -122,15 +122,9 @@ start_daemon() {
     done
     echo ""
 
-    # Build log tail command
-    local log_tail_cmd="tail -f $LOG_DIR/queue.log"
-    for ch in "${ACTIVE_CHANNELS[@]}"; do
-        log_tail_cmd="$log_tail_cmd $LOG_DIR/${ch}.log"
-    done
-
     # --- Build tmux session dynamically ---
-    # Total panes = N channels + 3 (queue, heartbeat, logs)
-    local total_panes=$(( ${#ACTIVE_CHANNELS[@]} + 3 ))
+    # Total panes = N channels + 2 (queue, heartbeat)
+    local total_panes=$(( ${#ACTIVE_CHANNELS[@]} + 2 ))
 
     tmux new-session -d -s "$TMUX_SESSION" -n "tinyclaw" -c "$SCRIPT_DIR"
 
@@ -169,11 +163,6 @@ start_daemon() {
     # Heartbeat pane
     tmux send-keys -t "$TMUX_SESSION:${win_base}.$pane_idx" "cd '$SCRIPT_DIR' && ./lib/heartbeat-cron.sh" C-m
     tmux select-pane -t "$TMUX_SESSION:${win_base}.$pane_idx" -T "Heartbeat"
-    pane_idx=$((pane_idx + 1))
-
-    # Logs pane
-    tmux send-keys -t "$TMUX_SESSION:${win_base}.$pane_idx" "cd '$SCRIPT_DIR' && $log_tail_cmd" C-m
-    tmux select-pane -t "$TMUX_SESSION:${win_base}.$pane_idx" -T "Logs"
 
     echo ""
     echo -e "${GREEN}✓ TinyClaw started${NC}"

@@ -651,10 +651,10 @@ bot.on('polling_error', (error: Error) => {
 // Track polling activity — any event from the bot means polling is alive
 bot.on('message', () => { lastPollingActivity = Date.now(); });
 
-// Watchdog: if no polling activity for 2 minutes, verify connectivity before restarting
+// Watchdog: if no polling activity for 5 minutes, verify connectivity before restarting
 setInterval(async () => {
     const silentMs = Date.now() - lastPollingActivity;
-    if (silentMs > 2 * 60 * 1000) {
+    if (silentMs > 5 * 60 * 1000) {
         // Check if the bot can actually reach Telegram before deciding polling is dead
         try {
             await bot.getMe();

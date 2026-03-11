@@ -149,12 +149,18 @@ TinyClaw includes `tinyoffice/`, a Next.js web portal for operating TinyClaw fro
 Start TinyClaw first (API default: `http://localhost:3777`), then:
 
 ```bash
+tinyclaw office
+```
+
+This auto-installs dependencies, builds, and starts the production server on `http://localhost:3000`.
+
+For development with hot-reload:
+
+```bash
 cd tinyoffice
 npm install
 npm run dev
 ```
-
-Open `http://localhost:3000`.
 
 If TinyClaw API is on a different host/port, set:
 
@@ -210,6 +216,7 @@ Commands work with `tinyclaw` (if CLI installed) or `./tinyclaw.sh` (direct scri
 | Command             | Description                                   | Example                    |
 | ------------------- | --------------------------------------------- | -------------------------- |
 | `chatroom <team>`   | Real-time TUI viewer with type-to-send        | `tinyclaw chatroom dev`    |
+| `office`            | Start TinyOffice web portal on port 3000      | `tinyclaw office`          |
 
 Every team has a persistent chat room. Agents post to it using `[#team_id: message]` tags, and messages are broadcast to all teammates. The chatroom viewer polls for new messages in real time — type a message and press Enter to post, or press `q`/Esc to quit.
 
