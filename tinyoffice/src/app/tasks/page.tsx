@@ -72,14 +72,27 @@ export default function TasksPage() {
       for (const [status, items] of Object.entries(newColumns)) {
         colMap[status] = items.map((t) => t.id);
       }
+
+      // Detect tasks newly moved into "in_progress" that have an assignee
+      const prevInProgress = new Set((columns.in_progress ?? []).map((t) => t.id));
+      const newlyInProgress = (newColumns.in_progress ?? []).filter(
+        (t) => !prevInProgress.has(t.id) && t.assignee
+      );
+
       try {
+        // Send messages before updating status so tasks only move to
+        // in_progress once the agent has actually been notified.
+        for (const task of newlyInProgress) {
+          const msg = `@${task.assignee} ${task.title}${task.description ? "\n\n" + task.description : ""}\n\n[task:${task.id}]`;
+          await sendMessage({ message: msg, sender: "Web", channel: "web" });
+        }
         await reorderTasks(colMap);
         refresh();
       } catch {
         // Ignore — will refresh on next poll
       }
     },
-    [refresh]
+    [refresh, columns]
   );
 
   const handleCreate = useCallback(async () => {
@@ -123,7 +136,7 @@ export default function TasksPage() {
     async (task: Task) => {
       if (!task.assignee) return;
       const prefix = task.assigneeType === "team" ? "@" : "@";
-      const msg = `${prefix}${task.assignee} ${task.title}${task.description ? "\n\n" + task.description : ""}`;
+      const msg = `${prefix}${task.assignee} ${task.title}${task.description ? "\n\n" + task.description : ""}\n\n[task:${task.id}]`;
       try {
         await sendMessage({ message: msg, sender: "Web", channel: "web" });
         await updateTask(task.id, { status: "in_progress" });

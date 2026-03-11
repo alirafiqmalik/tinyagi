@@ -83,7 +83,9 @@ export async function invokeAgent(
     // Resolve custom provider if using "custom:<id>" prefix
     let provider = rawProvider;
     let customProvider: CustomProvider | undefined;
-    let envOverrides: Record<string, string> = {};
+    let envOverrides: Record<string, string> = {
+        TINYCLAW_AGENT_ID: agentId,
+    };
 
     if (rawProvider.startsWith('custom:')) {
         const customId = rawProvider.slice('custom:'.length);
@@ -97,16 +99,12 @@ export async function invokeAgent(
 
         // Build env overrides based on harness
         if (customProvider.harness === 'claude') {
-            envOverrides = {
-                ANTHROPIC_BASE_URL: customProvider.base_url,
-                ANTHROPIC_AUTH_TOKEN: customProvider.api_key,
-                ANTHROPIC_API_KEY: '',
-            };
+            envOverrides.ANTHROPIC_BASE_URL = customProvider.base_url;
+            envOverrides.ANTHROPIC_AUTH_TOKEN = customProvider.api_key;
+            envOverrides.ANTHROPIC_API_KEY = '';
         } else if (customProvider.harness === 'codex') {
-            envOverrides = {
-                OPENAI_API_KEY: customProvider.api_key,
-                OPENAI_BASE_URL: customProvider.base_url,
-            };
+            envOverrides.OPENAI_API_KEY = customProvider.api_key;
+            envOverrides.OPENAI_BASE_URL = customProvider.base_url;
         }
 
         log('INFO', `Using custom provider '${customId}' (harness: ${customProvider.harness}, base_url: ${customProvider.base_url})`);
