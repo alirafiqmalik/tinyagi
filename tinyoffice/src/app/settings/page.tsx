@@ -93,9 +93,9 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">
               Once setup is complete, you can return here to edit raw settings.
             </p>
-            <Button asChild>
-              <Link href="/setup">Run Setup</Link>
-            </Button>
+            <Link href="/setup">
+              <Button>Run Setup</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
@@ -127,15 +127,12 @@ export default function SettingsPage() {
               {errorMsg}
             </span>
           )}
-          <Button
-            variant="outline"
-            asChild
-          >
-            <Link href="/setup" className="inline-flex items-center gap-2">
+          <Link href="/setup" className="inline-flex items-center gap-2">
+            <Button variant="outline">
               <Wand2 className="h-4 w-4" />
               <span>Run Setup</span>
-            </Link>
-          </Button>
+            </Button>
+          </Link>
           <Button onClick={handleSave} disabled={saving || loading}>
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />

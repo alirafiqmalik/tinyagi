@@ -118,10 +118,11 @@ jobs:
         id: release_notes
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          # Use for-each-ref to reliably get the annotated tag message (not the commit message)
-          TAG_MESSAGE=$(git for-each-ref --format='%(contents)' "refs/tags/$VERSION")
+          # git tag -l --format reads the annotated tag object directly,
+          # unlike for-each-ref which can dereference to the commit in CI
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' "$VERSION")
           if [ -n "$TAG_MESSAGE" ]; then
-            echo "$TAG_MESSAGE" > release_notes.md
+            printf '%s\n' "$TAG_MESSAGE" > release_notes.md
           else
             cat > release_notes.md <<EOF
           ## TinyClaw $VERSION
