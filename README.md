@@ -56,26 +56,20 @@ We are actively looking for contributors. Please reach out.
 
 ### Installation & First Run
 
-**Option 1: npx (Recommended)**
-
 ```bash
-npx tinyagi
+curl -fsSL https://raw.githubusercontent.com/TinyAGI/tinyagi/main/scripts/install.sh | bash
 ```
 
-This installs TinyAGI, creates a default workspace and agent, starts the API server, and opens the web setup portal where you can configure channels, providers, and agents from your browser.
+This downloads and installs the `tinyagi` command globally. Then start it:
 
-After the first run, the `tinyagi` command is available globally (no `npx` needed).
+```bash
+tinyagi start
+```
+
+The setup wizard will guide you through channel selection, bot tokens, workspace setup, and AI provider configuration.
 
 <details>
 <summary><b>Other installation methods</b></summary>
-
-**From Release:**
-
-```bash
-wget https://github.com/TinyAGI/tinyagi/releases/latest/download/tinyagi-bundle.tar.gz
-tar -xzf tinyagi-bundle.tar.gz
-cd tinyagi && ./scripts/install.sh
-```
 
 **From Source:**
 
@@ -94,7 +88,7 @@ tinyagi start --skip-setup  # Starts API server only
 
 </details>
 
-The setup wizard (CLI or web) will guide you through channel selection, bot tokens, workspace setup, default agent, AI provider, model selection, and heartbeat interval.
+The setup wizard (CLI or web) will also guide you through default agent, AI provider, model selection, and heartbeat interval.
 
 <details>
 <summary><b>📱 Channel Setup Guides</b></summary>
@@ -371,7 +365,7 @@ These commands work in Discord, Telegram, and WhatsApp:
 > **Note:** If you are on v0.0.1 or v0.0.2, the update script was broken. Please re-install instead:
 >
 > ```bash
-> npx tinyagi install
+> curl -fsSL https://raw.githubusercontent.com/TinyAGI/tinyagi/main/scripts/install.sh | bash
 > ```
 >
 > Your settings and user data will be preserved.

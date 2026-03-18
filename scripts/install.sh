@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 # TinyAGI CLI Installation Script
 # Creates a 'tinyagi' symlink so the command is available globally.
-# Also creates a 'tinyagi' symlink for backward compatibility.
+#
+# Supports: curl -fsSL <url>/install.sh | bash
+# When piped, downloads the release tarball, extracts it, and installs.
 
 set -e
+
+# If piped (no BASH_SOURCE path), download and extract first
+if [ -z "${BASH_SOURCE[0]}" ] || [ "${BASH_SOURCE[0]}" = "bash" ]; then
+    INSTALL_TMPDIR="$(mktemp -d)"
+    TARBALL_URL="https://github.com/TinyAGI/tinyagi/releases/latest/download/tinyagi-bundle.tar.gz"
+    echo "Downloading TinyAGI..."
+    curl -fsSL "$TARBALL_URL" | tar -xz -C "$INSTALL_TMPDIR"
+    exec bash "$INSTALL_TMPDIR/tinyagi/scripts/install.sh"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -60,7 +71,7 @@ install_symlink() {
 echo ""
 echo "Creating symlinks..."
 install_symlink "tinyagi" "$WRAPPER"
-install_symlink "tinyagi" "$WRAPPER"  # backward compat
+install_symlink "tinyclaw" "$WRAPPER"  # backward compat
 
 echo ""
 echo -e "${GREEN}✓ TinyAGI CLI installed successfully!${NC}"
@@ -107,5 +118,5 @@ else
 fi
 
 echo ""
-echo "To uninstall: npm uninstall -g tinyagi"
+echo "To uninstall: rm $INSTALL_DIR/tinyagi $INSTALL_DIR/tinyclaw"
 echo ""
