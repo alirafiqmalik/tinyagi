@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import {
     MessageJobData,
-    getSettings, getAgents, getTeams, LOG_FILE, CHATS_DIR, FILES_DIR,
+    getSettings, getAgents, getTeams, LOG_FILE, FILES_DIR,
     log, emitEvent,
     parseAgentRouting, getAgentResetFlag,
     invokeAgent,
@@ -25,13 +25,12 @@ import {
 } from '@tinyclaw/core';
 import { startApiServer } from '@tinyclaw/server';
 import {
-    conversations,
     handleTeamResponse,
     groupChatroomMessages,
 } from '@tinyclaw/teams';
 
 // Ensure directories exist
-[FILES_DIR, path.dirname(LOG_FILE), CHATS_DIR].forEach(dir => {
+[FILES_DIR, path.dirname(LOG_FILE)].forEach(dir => {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -47,15 +46,13 @@ async function processMessage(dbMsg: any): Promise<void> {
         message: dbMsg.message,
         messageId: dbMsg.message_id,
         agent: dbMsg.agent ?? undefined,
-        files: dbMsg.files ? JSON.parse(dbMsg.files) : undefined,
-        conversationId: dbMsg.conversation_id ?? undefined,
         fromAgent: dbMsg.from_agent ?? undefined,
     };
 
     const { channel, sender, message: rawMessage, messageId, agent: preRoutedAgent } = data;
-    const isInternal = !!data.conversationId;
+    const isInternal = !!data.fromAgent;
 
-    log('INFO', `Processing [${isInternal ? 'internal' : channel}] ${isInternal ? `@${data.fromAgent}→@${preRoutedAgent}` : `from ${sender}`}: ${rawMessage.substring(0, 50)}...`);
+    log('INFO', `Processing [${isInternal ? 'internal' : channel}] ${isInternal ? `@${data.fromAgent}→@${preRoutedAgent}` : `from ${sender}`}: ${rawMessage}`);
     if (!isInternal) {
         emitEvent('message_received', { channel, sender, message: rawMessage.substring(0, 120), messageId });
     }
@@ -89,7 +86,6 @@ async function processMessage(dbMsg: any): Promise<void> {
     }
 
     const agent = agents[agentId];
-    log('INFO', `Routing to agent: ${agent.name} (${agentId}) [${agent.provider}/${agent.model}]`);
     if (!isInternal) {
         emitEvent('agent_routed', { agentId, agentName: agent.name, provider: agent.provider, model: agent.model, isTeamRouted });
     }
@@ -116,10 +112,11 @@ async function processMessage(dbMsg: any): Promise<void> {
     emitEvent('chain_step_done', { agentId, agentName: agent.name, responseLength: response.length, responseText: response });
 
     // ── Persist & emit simplified agent_message event ────────────────────
+    const msgSender = isInternal ? data.fromAgent! : sender;
     if (!isInternal) {
-        insertAgentMessage({ agentId, role: 'user', channel, sender, messageId, content: rawMessage });
+        insertAgentMessage({ agentId, role: 'user', channel, sender: msgSender, messageId, content: rawMessage });
     }
-    insertAgentMessage({ agentId, role: 'assistant', channel, sender, messageId, content: response });
+    insertAgentMessage({ agentId, role: 'assistant', channel, sender: msgSender, messageId, content: response });
     emitEvent('agent_message', {
         agentId, agentName: agent.name, role: 'assistant',
         channel, sender, messageId,
@@ -222,7 +219,7 @@ function logAgentConfig(): void {
 
 initQueueDb();
 
-const apiServer = startApiServer(conversations);
+const apiServer = startApiServer();
 
 // Event-driven: process queue when a new message arrives
 queueEvents.on('message:enqueued', () => processQueue());
