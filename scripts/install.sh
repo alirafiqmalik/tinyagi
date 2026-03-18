@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # TinyAGI CLI Installation Script
 # Creates a 'tinyagi' symlink so the command is available globally.
-# Also creates a 'tinyclaw' symlink for backward compatibility.
+# Also creates a 'tinyagi' symlink for backward compatibility.
 
 set -e
 
@@ -60,7 +60,7 @@ install_symlink() {
 echo ""
 echo "Creating symlinks..."
 install_symlink "tinyagi" "$WRAPPER"
-install_symlink "tinyclaw" "$WRAPPER"  # backward compat
+install_symlink "tinyagi" "$WRAPPER"  # backward compat
 
 echo ""
 echo -e "${GREEN}✓ TinyAGI CLI installed successfully!${NC}"

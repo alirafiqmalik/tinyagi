@@ -3,7 +3,7 @@ import {
     log, emitEvent,
     findTeamForAgent, insertChatMessage,
     enqueueMessage, streamResponse, genId,
-} from '@tinyclaw/core';
+} from '@tinyagi/core';
 import { convertTagsToReadable, extractTeammateMentions, extractChatRoomMessages } from './routing';
 
 // ── Team Chat Room ───────────────────────────────────────────────────────────

@@ -238,7 +238,7 @@ export default function SetupPage() {
           ) : enabledChannels.length > 0 ? (
             <div className="bg-muted rounded-md p-4 text-sm space-y-2 text-left max-w-sm mx-auto">
               <p className="font-medium">Restart to enable channels:</p>
-              <pre className="bg-background rounded px-2 py-1 text-xs">tinyclaw restart</pre>
+              <pre className="bg-background rounded px-2 py-1 text-xs">tinyagi restart</pre>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">

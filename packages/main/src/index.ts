@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * TinyClaw Queue Processor — Entry point.
+ * TinyAGI Queue Processor — Entry point.
  *
  * Initializes the SQLite queue, starts the API server, processes messages,
  * and manages lifecycle. This is the only file that should be run directly.
@@ -22,12 +22,12 @@ import {
     closeQueueDb, queueEvents,
     insertAgentMessage,
     startScheduler, stopScheduler,
-} from '@tinyclaw/core';
-import { startApiServer } from '@tinyclaw/server';
+} from '@tinyagi/core';
+import { startApiServer } from '@tinyagi/server';
 import {
     handleTeamResponse,
     groupChatroomMessages,
-} from '@tinyclaw/teams';
+} from '@tinyagi/teams';
 
 // Ensure directories exist
 [FILES_DIR, path.dirname(LOG_FILE)].forEach(dir => {
@@ -60,7 +60,7 @@ async function processMessage(dbMsg: any): Promise<void> {
     const settings = getSettings();
     const agents = getAgents(settings);
     const teams = getTeams(settings);
-    const workspacePath = settings?.workspace?.path || path.join(require('os').homedir(), 'tinyclaw-workspace');
+    const workspacePath = settings?.workspace?.path || path.join(require('os').homedir(), 'tinyagi-workspace');
 
     // ── Route message to agent ──────────────────────────────────────────────
     let agentId: string;

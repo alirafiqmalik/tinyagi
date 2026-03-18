@@ -1,5 +1,5 @@
 const DEFAULT_API_BASE = "http://localhost:3777";
-const STORAGE_KEY = "tinyclaw_api_base";
+const STORAGE_KEY = "tinyagi_api_base";
 
 /** Resolve the API base URL. Priority: env > localStorage > default. */
 export function getApiBase(): string {

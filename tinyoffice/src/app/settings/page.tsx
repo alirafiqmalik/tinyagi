@@ -217,11 +217,11 @@ export default function SettingsPage() {
                 Make sure TinyAGI is installed and running:
               </p>
               <pre className="bg-muted rounded px-2 py-1 text-xs overflow-x-auto">
-                npx tinyagi{"\n"}# or if already installed:{"\n"}tinyclaw start --skip-setup
+                npx tinyagi{"\n"}# or if already installed:{"\n"}tinyagi start --skip-setup
               </pre>
               <p className="text-muted-foreground text-xs">
                 <a
-                  href="https://github.com/TinyAGI/tinyclaw#-quick-start"
+                  href="https://github.com/TinyAGI/tinyagi#-quick-start"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"

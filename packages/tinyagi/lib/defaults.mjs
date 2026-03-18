@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const TINYCLAW_HOME = process.env.TINYCLAW_HOME || path.join(os.homedir(), '.tinyclaw');
-const SETTINGS_FILE = path.join(TINYCLAW_HOME, 'settings.json');
+const TINYAGI_HOME = process.env.TINYAGI_HOME || path.join(os.homedir(), '.tinyagi');
+const SETTINGS_FILE = path.join(TINYAGI_HOME, 'settings.json');
 
 function expandHome(p) {
     if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2));
@@ -43,8 +43,8 @@ export function writeDefaults() {
         return false;
     }
 
-    // Ensure TINYCLAW_HOME exists
-    fs.mkdirSync(TINYCLAW_HOME, { recursive: true });
+    // Ensure TINYAGI_HOME exists
+    fs.mkdirSync(TINYAGI_HOME, { recursive: true });
 
     // Write settings
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(DEFAULT_SETTINGS, null, 2) + '\n');
@@ -60,4 +60,4 @@ export function writeDefaults() {
     return true;
 }
 
-export { TINYCLAW_HOME, SETTINGS_FILE, DEFAULT_SETTINGS };
+export { TINYAGI_HOME, SETTINGS_FILE, DEFAULT_SETTINGS };

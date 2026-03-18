@@ -4,12 +4,12 @@ import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { writeDefaults, TINYCLAW_HOME } from '../lib/defaults.mjs';
+import { writeDefaults, TINYAGI_HOME } from '../lib/defaults.mjs';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const INSTALL_DIR = TINYCLAW_HOME;
-const GITHUB_REPO = 'TinyAGI/tinyclaw';
+const INSTALL_DIR = TINYAGI_HOME;
+const GITHUB_REPO = 'TinyAGI/tinyagi';
 const PORTAL_URL = 'https://office.tinyagicompany.com';
 
 const GREEN = '\x1b[32m';
@@ -56,7 +56,7 @@ function checkPrerequisites() {
 // ── Installation ─────────────────────────────────────────────────────────────
 
 function isInstalled() {
-    return fs.existsSync(path.join(INSTALL_DIR, 'tinyclaw.sh'));
+    return fs.existsSync(path.join(INSTALL_DIR, 'tinyagi.sh'));
 }
 
 async function install() {
@@ -74,7 +74,7 @@ async function install() {
         const match = releaseJson.match(/"tag_name"\s*:\s*"([^"]+)"/);
         if (match) {
             const tag = match[1];
-            const bundleUrl = `https://github.com/${GITHUB_REPO}/releases/download/${tag}/tinyclaw-bundle.tar.gz`;
+            const bundleUrl = `https://github.com/${GITHUB_REPO}/releases/download/${tag}/tinyagi-bundle.tar.gz`;
 
             // Check if bundle exists
             try {
@@ -115,7 +115,7 @@ async function install() {
     }
 
     // Make scripts executable
-    exec(`chmod +x "${INSTALL_DIR}/bin/tinyagi" "${INSTALL_DIR}/bin/tinyclaw" "${INSTALL_DIR}/tinyclaw.sh" "${INSTALL_DIR}/lib/heartbeat-cron.sh" "${INSTALL_DIR}/packages/tinyagi/bin/tinyagi.mjs"`);
+    exec(`chmod +x "${INSTALL_DIR}/bin/tinyagi" "${INSTALL_DIR}/bin/tinyclaw" "${INSTALL_DIR}/tinyagi.sh" "${INSTALL_DIR}/lib/heartbeat-cron.sh" "${INSTALL_DIR}/packages/tinyagi/bin/tinyagi.mjs"`);
 
     // Install CLI symlink (tinyagi command)
     installCli();
@@ -247,19 +247,19 @@ async function run() {
     console.log('');
 }
 
-// ── Delegate to bash (tinyclaw.sh) ───────────────────────────────────────────
+// ── Delegate to bash (tinyagi.sh) ───────────────────────────────────────────
 
 function delegateToBash(args, opts = {}) {
-    const tinyclawSh = path.join(INSTALL_DIR, 'tinyclaw.sh');
-    if (!fs.existsSync(tinyclawSh)) {
+    const tinyagiSh = path.join(INSTALL_DIR, 'tinyagi.sh');
+    if (!fs.existsSync(tinyagiSh)) {
         log(RED, 'TinyAGI is not installed. Run "tinyagi" or "npx tinyagi" first.');
         process.exit(1);
     }
 
     if (opts.sync) {
-        execSync(`"${tinyclawSh}" ${args.map(a => `"${a}"`).join(' ')}`, { stdio: 'inherit' });
+        execSync(`"${tinyagiSh}" ${args.map(a => `"${a}"`).join(' ')}`, { stdio: 'inherit' });
     } else {
-        const child = spawn(tinyclawSh, args, { stdio: 'inherit' });
+        const child = spawn(tinyagiSh, args, { stdio: 'inherit' });
         child.on('exit', (code) => process.exit(code || 0));
     }
 }
@@ -346,7 +346,7 @@ switch (command) {
         console.log('');
         break;
 
-    // All other commands delegate to tinyclaw.sh
+    // All other commands delegate to tinyagi.sh
     default:
         delegateToBash([command, ...restArgs]);
         break;

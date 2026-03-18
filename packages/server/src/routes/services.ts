@@ -2,16 +2,16 @@ import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { Hono } from 'hono';
-import { SCRIPT_DIR, getSettings } from '@tinyclaw/core';
-import { log } from '@tinyclaw/core';
+import { SCRIPT_DIR, getSettings } from '@tinyagi/core';
+import { log } from '@tinyagi/core';
 
 const app = new Hono();
 const execFileAsync = promisify(execFile);
 
-const TINYCLAW_SH = path.join(SCRIPT_DIR, 'tinyclaw.sh');
+const TINYAGI_SH = path.join(SCRIPT_DIR, 'tinyagi.sh');
 
-async function runTinyclaw(...args: string[]): Promise<string> {
-    const { stdout, stderr } = await execFileAsync('bash', [TINYCLAW_SH, ...args], {
+async function runTinyagi(...args: string[]): Promise<string> {
+    const { stdout, stderr } = await execFileAsync('bash', [TINYAGI_SH, ...args], {
         cwd: SCRIPT_DIR,
         timeout: 30_000,
         maxBuffer: 1024 * 1024,
@@ -29,7 +29,7 @@ app.post('/api/services/apply', async (c) => {
     // Start each enabled channel
     for (const ch of enabledChannels) {
         try {
-            await runTinyclaw('channel', 'start', ch);
+            await runTinyagi('channel', 'start', ch);
             started.push(ch);
         } catch (err) {
             const msg = (err as Error).message;
@@ -46,7 +46,7 @@ app.post('/api/services/apply', async (c) => {
     // Start heartbeat
     let heartbeat = false;
     try {
-        await runTinyclaw('heartbeat', 'start');
+        await runTinyagi('heartbeat', 'start');
         heartbeat = true;
     } catch (err) {
         const msg = (err as Error).message;

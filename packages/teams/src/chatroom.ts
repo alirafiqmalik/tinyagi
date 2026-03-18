@@ -1,4 +1,4 @@
-import { genId, log } from '@tinyclaw/core';
+import { genId, log } from '@tinyagi/core';
 
 export type GroupedChatroomResult = {
     messages: any[];

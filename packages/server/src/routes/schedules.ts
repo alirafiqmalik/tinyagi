@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getSchedules, addSchedule, removeSchedule, updateSchedule } from '@tinyclaw/core';
+import { getSchedules, addSchedule, removeSchedule, updateSchedule } from '@tinyagi/core';
 
 const app = new Hono();
 

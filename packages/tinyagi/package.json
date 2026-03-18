@@ -1,7 +1,7 @@
 {
   "name": "tinyagi",
   "version": "0.0.13",
-  "description": "Multi-agent AI assistant — quick start for TinyClaw",
+  "description": "Multi-agent AI assistant — quick start for TinyAGI",
   "type": "module",
   "bin": {
     "tinyagi": "./bin/tinyagi.mjs"
@@ -15,12 +15,12 @@
     "agent",
     "multi-agent",
     "claude",
-    "tinyclaw",
+    "tinyagi",
     "tinyagi"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/TinyAGI/tinyclaw"
+    "url": "https://github.com/TinyAGI/tinyagi"
   },
   "license": "MIT",
   "dependencies": {
