@@ -12,6 +12,9 @@ import {
 import {
   Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanItemHandle, KanbanOverlay,
 } from "@/components/ui/kanban";
+import { OverviewTab } from "@/components/project/overview-tab";
+import { AgentsTab } from "@/components/project/agents-tab";
+import { WorkspaceTab } from "@/components/project/workspace-tab";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +23,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import {
   FolderKanban, Plus, GripVertical, Bot, Users, X, Check, Loader2,
-  Trash2, Send, Clock, ArrowLeft,
+  Trash2, Send, Clock, ArrowLeft, LayoutDashboard, FolderOpen, UserCircle,
 } from "lucide-react";
 
 const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
@@ -39,6 +42,13 @@ interface TaskForm {
 
 const emptyForm: TaskForm = { title: "", description: "", assignee: "", assigneeType: "" };
 
+type TabId = "overview" | "tasks" | "agents" | "workspace";
+
+/** Build the message to dispatch a task. */
+function buildTaskMessage(task: Task): string {
+  return `@${task.assignee} ${task.title}${task.description ? "\n\n" + task.description : ""}\n\n[task:${task.id}]`;
+}
+
 export default function ProjectDetailPage({
   params,
 }: {
@@ -48,9 +58,12 @@ export default function ProjectDetailPage({
   const { data: allTasks, refresh: refreshTasks } = usePolling<Task[]>(getTasks, 3000);
   const { data: agents } = usePolling<Record<string, AgentConfig>>(getAgents, 0);
   const { data: teams } = usePolling<Record<string, TeamConfig>>(getTeams, 0);
-  const { data: projects } = usePolling<Project[]>(getProjects, 5000);
+  const { data: projects, refresh: refreshProjects } = usePolling<Project[]>(getProjects, 5000);
 
-  const project = projects?.find((p) => p.id === projectId);
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [localProject, setLocalProject] = useState<Project | null>(null);
+
+  const project = localProject ?? projects?.find((p) => p.id === projectId);
   const tasks = useMemo(
     () => (allTasks || []).filter((t) => t.projectId === projectId),
     [allTasks, projectId]
@@ -86,8 +99,7 @@ export default function ProjectDetailPage({
 
       try {
         for (const task of newlyInProgress) {
-          const msg = `@${task.assignee} ${task.title}${task.description ? "\n\n" + task.description : ""}\n\n[task:${task.id}]`;
-          await sendMessage({ message: msg, sender: "Web", channel: "web" });
+          await sendMessage({ message: buildTaskMessage(task), sender: "Web", channel: "web" });
         }
         await reorderTasks(colMap);
         refreshTasks();
@@ -139,9 +151,8 @@ export default function ProjectDetailPage({
   const handleAssign = useCallback(
     async (task: Task) => {
       if (!task.assignee) return;
-      const msg = `@${task.assignee} ${task.title}${task.description ? "\n\n" + task.description : ""}\n\n[task:${task.id}]`;
       try {
-        await sendMessage({ message: msg, sender: "Web", channel: "web" });
+        await sendMessage({ message: buildTaskMessage(task), sender: "Web", channel: "web" });
         await updateTask(task.id, { status: "in_progress" });
         refreshTasks();
       } catch {
@@ -164,15 +175,24 @@ export default function ProjectDetailPage({
     }));
   };
 
+  const handleProjectUpdated = useCallback((updated: Project) => {
+    setLocalProject(updated);
+    refreshProjects();
+  }, [refreshProjects]);
+
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: "overview", label: "Overview", icon: <LayoutDashboard className="h-3.5 w-3.5" /> },
+    { id: "tasks", label: "Tasks", icon: <FolderKanban className="h-3.5 w-3.5" /> },
+    { id: "agents", label: "Agents", icon: <UserCircle className="h-3.5 w-3.5" /> },
+    { id: "workspace", label: "Workspace", icon: <FolderOpen className="h-3.5 w-3.5" /> },
+  ];
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-6 py-4">
         <div className="flex items-center gap-3">
-          <Link
-            href="/projects"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
+          <Link href="/projects" className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
@@ -181,158 +201,188 @@ export default function ProjectDetailPage({
               {project?.name || "Project"}
             </h1>
             {project?.description && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {project.description}
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">{project.description}</p>
             )}
           </div>
         </div>
-        <Button onClick={() => setCreating(true)} disabled={creating}>
-          <Plus className="h-4 w-4" />
-          New Task
-        </Button>
+        {activeTab === "tasks" && (
+          <Button onClick={() => setCreating(true)} disabled={creating}>
+            <Plus className="h-4 w-4" />
+            New Task
+          </Button>
+        )}
       </div>
 
-      {/* New task form */}
-      {creating && (
-        <div className="border-b px-6 py-4 bg-card space-y-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Input
-              placeholder="Task title"
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className="md:col-span-2"
-            />
-            <Select
-              value={form.assignee ? `${form.assigneeType}:${form.assignee}` : "none"}
-              onValueChange={(v) => setAssignee(v === "none" ? "" : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Unassigned</SelectItem>
-                {agents &&
-                  Object.entries(agents).map(([id, a]) => (
-                    <SelectItem key={`agent:${id}`} value={`agent:${id}`}>
-                      Agent: {a.name}
-                    </SelectItem>
+      {/* Tabs */}
+      <div className="flex items-center border-b bg-card px-6">
+        {tabs.map(tab => (
+          <Button
+            key={tab.id}
+            variant="ghost"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors rounded-none border-b-2 -mb-px h-auto ${
+              activeTab === tab.id
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-transparent"
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.id === "tasks" && tasks.length > 0 && (
+              <span className="text-[9px] text-muted-foreground ml-0.5">({tasks.length})</span>
+            )}
+          </Button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-auto">
+
+        {/* ── Overview ── */}
+        {activeTab === "overview" && project && (
+          <OverviewTab project={project} onUpdated={handleProjectUpdated} />
+        )}
+
+        {/* ── Tasks ── */}
+        {activeTab === "tasks" && (
+          <>
+            {creating && (
+              <div className="border-b px-6 py-4 bg-card space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <Input
+                    placeholder="Task title"
+                    value={form.title}
+                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                    className="md:col-span-2"
+                  />
+                  <Select
+                    value={form.assignee ? `${form.assigneeType}:${form.assignee}` : "none"}
+                    onValueChange={(v) => setAssignee(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Unassigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Unassigned</SelectItem>
+                      {agents && Object.entries(agents).map(([id, a]) => (
+                        <SelectItem key={`agent:${id}`} value={`agent:${id}`}>Agent: {a.name}</SelectItem>
+                      ))}
+                      {teams && Object.entries(teams).map(([id, t]) => (
+                        <SelectItem key={`team:${id}`} value={`team:${id}`}>Team: {t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Textarea
+                  placeholder="Description (optional)"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={2}
+                  className="text-sm resize-none"
+                />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <div className="flex items-center gap-2">
+                  <Button onClick={handleCreate} disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Create
+                  </Button>
+                  <Button variant="ghost" onClick={() => { setCreating(false); setForm({ ...emptyForm }); setError(""); }} disabled={saving}>
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-x-auto p-4 h-full">
+              <Kanban value={columns} onValueChange={handleValueChange} getItemValue={(item: Task) => item.id}>
+                <KanbanBoard className="h-full">
+                  {COLUMNS.map((col) => (
+                    <KanbanColumn
+                      key={col.id}
+                      value={col.id}
+                      className="min-w-[260px] max-w-[320px] flex-1 bg-card border border-border"
+                    >
+                      <div className="flex items-center justify-between px-2 py-1">
+                        <span className={`text-xs font-semibold uppercase tracking-wider ${col.color}`}>
+                          {col.label}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {(columns[col.id] ?? []).length}
+                        </Badge>
+                      </div>
+
+                      <div className="flex-1 space-y-2 overflow-y-auto px-0.5">
+                        {(columns[col.id] ?? []).map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            agents={agents || {}}
+                            teams={teams || {}}
+                            onDelete={handleDelete}
+                            onAssign={handleAssign}
+                          />
+                        ))}
+                      </div>
+                    </KanbanColumn>
                   ))}
-                {teams &&
-                  Object.entries(teams).map(([id, t]) => (
-                    <SelectItem key={`team:${id}`} value={`team:${id}`}>
-                      Team: {t.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Textarea
-            placeholder="Description (optional)"
-            value={form.description}
-            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            rows={2}
-            className="text-sm resize-none"
+                </KanbanBoard>
+
+                <KanbanOverlay>
+                  {({ value, variant }) => {
+                    if (variant === "column") return null;
+                    const task = tasks.find((t) => t.id === value);
+                    if (!task) return null;
+                    return (
+                      <Card className="border-primary/50 shadow-lg w-[280px]">
+                        <CardContent className="p-3 space-y-1">
+                          <p className="text-sm font-medium">{task.title}</p>
+                          {task.assignee && (
+                            <Badge variant="secondary" className="text-[10px] flex items-center gap-1 w-fit">
+                              {task.assigneeType === "team"
+                                ? <Users className="h-2.5 w-2.5" />
+                                : <Bot className="h-2.5 w-2.5" />}
+                              {task.assigneeType === "team"
+                                ? (teams || {})[task.assignee]?.name || task.assignee
+                                : (agents || {})[task.assignee]?.name || task.assignee}
+                            </Badge>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  }}
+                </KanbanOverlay>
+              </Kanban>
+            </div>
+          </>
+        )}
+
+        {/* ── Agents ── */}
+        {activeTab === "agents" && project && (
+          <AgentsTab
+            project={project}
+            agents={agents || {}}
+            teams={teams || {}}
+            onUpdated={handleProjectUpdated}
           />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <div className="flex items-center gap-2">
-            <Button onClick={handleCreate} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Create
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setCreating(false);
-                setForm({ ...emptyForm });
-                setError("");
-              }}
-              disabled={saving}
-            >
-              <X className="h-4 w-4" />
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto p-4">
-        <Kanban
-          value={columns}
-          onValueChange={handleValueChange}
-          getItemValue={(item: Task) => item.id}
-        >
-          <KanbanBoard className="h-full">
-            {COLUMNS.map((col) => (
-              <KanbanColumn
-                key={col.id}
-                value={col.id}
-                className="min-w-[260px] max-w-[320px] flex-1 bg-card border border-border"
-              >
-                <div className="flex items-center justify-between px-2 py-1">
-                  <span className={`text-xs font-semibold uppercase tracking-wider ${col.color}`}>
-                    {col.label}
-                  </span>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {(columns[col.id] ?? []).length}
-                  </Badge>
-                </div>
-
-                <div className="flex-1 space-y-2 overflow-y-auto px-0.5">
-                  {(columns[col.id] ?? []).map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      agents={agents || {}}
-                      teams={teams || {}}
-                      onDelete={handleDelete}
-                      onAssign={handleAssign}
-                    />
-                  ))}
-                </div>
-              </KanbanColumn>
-            ))}
-          </KanbanBoard>
-
-          <KanbanOverlay>
-            {({ value, variant }) => {
-              if (variant === "column") return null;
-              const task = tasks.find((t) => t.id === value);
-              if (!task) return null;
-              return (
-                <Card className="border-primary/50 shadow-lg w-[280px]">
-                  <CardContent className="p-3 space-y-1">
-                    <p className="text-sm font-medium">{task.title}</p>
-                    {task.assignee && (
-                      <Badge variant="secondary" className="text-[10px] flex items-center gap-1 w-fit">
-                        {task.assigneeType === "team" ? (
-                          <Users className="h-2.5 w-2.5" />
-                        ) : (
-                          <Bot className="h-2.5 w-2.5" />
-                        )}
-                        {task.assigneeType === "team"
-                          ? (teams || {})[task.assignee]?.name || task.assignee
-                          : (agents || {})[task.assignee]?.name || task.assignee}
-                      </Badge>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            }}
-          </KanbanOverlay>
-        </Kanban>
+        {/* ── Workspace ── */}
+        {activeTab === "workspace" && project && (
+          <WorkspaceTab
+            project={project}
+            agents={agents || {}}
+            teams={teams || {}}
+            onUpdated={handleProjectUpdated}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 function TaskCard({
-  task,
-  agents,
-  teams,
-  onDelete,
-  onAssign,
+  task, agents, teams, onDelete, onAssign,
 }: {
   task: Task;
   agents: Record<string, AgentConfig>;
@@ -354,20 +404,16 @@ function TaskCard({
           </div>
 
           {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 pl-5.5">
-              {task.description}
-            </p>
+            <p className="text-xs text-muted-foreground line-clamp-2 pl-5.5">{task.description}</p>
           )}
 
           <div className="flex items-center justify-between pl-5.5">
             <div className="flex items-center gap-1.5">
               {task.assignee ? (
                 <Badge variant="secondary" className="text-[10px] flex items-center gap-1">
-                  {task.assigneeType === "team" ? (
-                    <Users className="h-2.5 w-2.5" />
-                  ) : (
-                    <Bot className="h-2.5 w-2.5" />
-                  )}
+                  {task.assigneeType === "team"
+                    ? <Users className="h-2.5 w-2.5" />
+                    : <Bot className="h-2.5 w-2.5" />}
                   {task.assigneeType === "team"
                     ? teams[task.assignee]?.name || task.assignee
                     : agents[task.assignee]?.name || task.assignee}
@@ -379,13 +425,8 @@ function TaskCard({
 
             <div className="flex items-center gap-0.5">
               {task.assignee && task.status === "backlog" && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-primary"
-                  onClick={(e) => { e.stopPropagation(); onAssign(task); }}
-                  title="Send to agent"
-                >
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary"
+                  onClick={(e) => { e.stopPropagation(); onAssign(task); }} title="Send to agent">
                   <Send className="h-3 w-3" />
                 </Button>
               )}

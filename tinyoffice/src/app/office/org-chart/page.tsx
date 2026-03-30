@@ -130,7 +130,8 @@ function buildOrgChart(
   // Find agents assigned to at least one team
   const assignedAgentIds = new Set<string>();
   for (const [, team] of teamEntries) {
-    for (const aid of team.agents) assignedAgentIds.add(aid);
+    const ids = team.members?.map(m => m.agent_id) ?? (team as unknown as {agents?: string[]}).agents ?? [];
+    for (const aid of ids) assignedAgentIds.add(aid);
   }
 
   // Unassigned agents
@@ -153,9 +154,10 @@ function buildOrgChart(
   }[] = [];
 
   for (const [teamId, team] of teamEntries) {
-    const members = team.agents
-      .filter((aid) => agents[aid])
-      .map((aid) => ({
+    const memberIds = team.members?.map(m => m.agent_id) ?? (team as unknown as {agents?: string[]}).agents ?? [];
+    const members = memberIds
+      .filter((aid: string) => agents[aid])
+      .map((aid: string) => ({
         id: `team-${teamId}-agent-${aid}`,
         agentId: aid,
         isLeader: aid === team.leader_agent,
@@ -163,7 +165,7 @@ function buildOrgChart(
         model: `${agents[aid].provider}/${agents[aid].model}`,
       }));
     // Sort so leader comes first
-    members.sort((a, b) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0));
+    members.sort((a: {isLeader: boolean}, b: {isLeader: boolean}) => (b.isLeader ? 1 : 0) - (a.isLeader ? 1 : 0));
 
     groups.push({
       headerId: `team-${teamId}`,

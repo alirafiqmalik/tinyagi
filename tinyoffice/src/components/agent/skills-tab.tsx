@@ -7,17 +7,23 @@ import {
   SkillsConstellation,
   type SkillEntry,
 } from "@/components/agent/skills-constellation";
-import { searchRegistrySkills, installRegistrySkill } from "@/lib/api";
-import { RefreshCw, Swords } from "lucide-react";
+import { searchRegistrySkills, installRegistrySkill, type WorkspaceSkill } from "@/lib/api";
+import { RefreshCw, Swords, Settings2 } from "lucide-react";
 
 export function SkillsTab({
   skills,
+  allSkills,
+  assignedSkillIds,
+  onToggleSkill,
   agentName,
   agentInitials,
   onRefresh,
   agentId,
 }: {
   skills: SkillEntry[];
+  allSkills: WorkspaceSkill[];
+  assignedSkillIds: string[];
+  onToggleSkill: (skillId: string) => void;
   agentName: string;
   agentInitials: string;
   onRefresh: () => void;
@@ -33,6 +39,7 @@ export function SkillsTab({
   const [installingRef, setInstallingRef] = useState<string | null>(null);
   const [installMessage, setInstallMessage] = useState<string | null>(null);
   const [registryOpen, setRegistryOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
 
   const filtered = skills.filter((s) => {
     if (
@@ -101,9 +108,17 @@ export function SkillsTab({
         >
           Registry Search
         </Button>
+        <Button
+          variant={manageOpen ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setManageOpen((v) => !v)}
+        >
+          <Settings2 className="h-3 w-3" />
+          Manage
+        </Button>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground">
-            {filtered.length} skills
+            {assignedSkillIds.length}/{allSkills.length} skills enabled
           </span>
         </div>
       </div>
@@ -188,6 +203,35 @@ export function SkillsTab({
         </div>
       )}
 
+      {/* Manage panel — toggle which skills are enabled for this agent */}
+      {manageOpen && (
+        <div className="border-b bg-card/40 px-6 py-3">
+          <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            Enabled skills
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allSkills.map((s) => {
+              const enabled = assignedSkillIds.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => onToggleSkill(s.id)}
+                  title={s.description}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border transition-colors ${
+                    enabled
+                      ? "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-muted/40 border-border text-muted-foreground opacity-50"
+                  }`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-primary" : "bg-muted-foreground"}`} />
+                  {s.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Constellation */}
       {filtered.length > 0 ? (
         <div className="flex-1">
@@ -203,11 +247,14 @@ export function SkillsTab({
             <Swords className="h-8 w-8 mx-auto mb-3 opacity-30" />
             <p className="text-sm">No skills found in workspace</p>
             <p className="text-xs mt-1">
-              Skills are loaded from{" "}
+              Enable skills via{" "}
               <code className="bg-muted px-1 py-0.5 text-[10px] font-mono">
-                .agents/skills/
+                Manage
               </code>{" "}
-              in the agent workspace
+              or install them into{" "}
+              <code className="bg-muted px-1 py-0.5 text-[10px] font-mono">
+                ~/.tinyagi/skills-bank/
+              </code>
             </p>
           </div>
         </div>

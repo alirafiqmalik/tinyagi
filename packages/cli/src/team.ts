@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as p from '@clack/prompts';
-import { Settings } from '@tinyagi/core';
+import { Settings, TeamConfig, TeamMember, DEFAULT_TEAM_MEMBER_PERMISSIONS, getTeamMemberIds } from '@tinyagi/core';
 import {
     unwrap, cleanId, validateId,
     writeSettings, requireSettings, printBanner,
@@ -61,15 +61,20 @@ async function teamAdd() {
     })) as string;
 
     if (!settings.teams) settings.teams = {};
+    const members: TeamMember[] = (selectedAgents as string[]).map((id: string) => ({
+        agent_id: id,
+        role_tag: '',
+        permissions: { ...DEFAULT_TEAM_MEMBER_PERMISSIONS },
+    }));
     settings.teams[teamId] = {
         name: teamName || teamId,
-        agents: selectedAgents,
+        members,
         leader_agent: leader,
     };
     writeSettings(settings);
 
     p.log.success(`Team '${teamId}' created!`);
-    p.log.info(`Agents: ${selectedAgents.join(', ')}`);
+    p.log.info(`Agents: ${(selectedAgents as string[]).join(', ')}`);
     p.log.info(`Leader: @${leader}`);
     p.outro(`Send '@${teamId} <message>' in any channel to use this team.`);
 }
@@ -111,12 +116,13 @@ async function teamRemoveAgent(teamId: string, agentId: string) {
         process.exit(1);
     }
 
-    if (!team.agents.includes(agentId)) {
+    const memberIds = getTeamMemberIds(team as unknown as TeamConfig);
+    if (!memberIds.includes(agentId)) {
         p.log.warn(`Agent '${agentId}' is not in team '${teamId}'.`);
         return;
     }
 
-    const remaining = team.agents.filter(a => a !== agentId);
+    const remaining = memberIds.filter((a: string) => a !== agentId);
     if (remaining.length < 1) {
         p.log.error(`Cannot remove the last agent. Use 'team remove ${teamId}' to remove the whole team.`);
         process.exit(1);
@@ -128,7 +134,7 @@ async function teamRemoveAgent(teamId: string, agentId: string) {
         const agents = settings.agents || {};
         newLeader = unwrap(await p.select({
             message: 'Choose a new leader',
-            options: remaining.map(id => ({
+            options: remaining.map((id: string) => ({
                 value: id,
                 label: `@${id} - ${agents[id]?.name || id}`,
             })),
@@ -144,7 +150,12 @@ async function teamRemoveAgent(teamId: string, agentId: string) {
         return;
     }
 
-    team.agents = remaining;
+    // Update in new format (members[]) or legacy format
+    if (Array.isArray(team.members)) {
+        team.members = team.members.filter((m: TeamMember) => m.agent_id !== agentId);
+    } else {
+        (team as unknown as { agents: string[] }).agents = remaining;
+    }
     team.leader_agent = newLeader;
     writeSettings(settings);
 
@@ -168,7 +179,7 @@ function teamList() {
     for (const id of ids) {
         const t = teams[id];
         p.log.message(`  @${id} - ${t.name}`);
-        p.log.message(`    Agents:  ${t.agents.join(', ')}`);
+        p.log.message(`    Agents:  ${getTeamMemberIds(t as unknown as TeamConfig).join(', ')}`);
         p.log.message(`    Leader:  @${t.leader_agent}`);
         p.log.message('');
     }
@@ -212,12 +223,21 @@ function teamAddAgent(teamId: string, agentId: string) {
         process.exit(1);
     }
 
-    if (team.agents.includes(agentId)) {
+    const existingIds = getTeamMemberIds(team as unknown as TeamConfig);
+    if (existingIds.includes(agentId)) {
         p.log.warn(`Agent '${agentId}' is already in team '${teamId}'.`);
         return;
     }
 
-    team.agents.push(agentId);
+    if (Array.isArray(team.members)) {
+        team.members.push({
+            agent_id: agentId,
+            role_tag: '',
+            permissions: { ...DEFAULT_TEAM_MEMBER_PERMISSIONS },
+        });
+    } else {
+        (team as unknown as { agents: string[] }).agents.push(agentId);
+    }
     writeSettings(settings);
 
     p.log.success(`Added @${agentId} to team '${teamId}' (${team.name}).`);

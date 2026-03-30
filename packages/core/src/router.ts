@@ -1,5 +1,6 @@
 import path from 'path';
 import { AgentConfig, TeamConfig } from './types';
+import { getTeamMemberIds } from './config';
 import { log } from './logging';
 
 /**
@@ -49,7 +50,7 @@ export function parseAgentRouting(
  */
 export function findTeamForAgent(agentId: string, teams: Record<string, TeamConfig>): { teamId: string; team: TeamConfig } | null {
     for (const [teamId, team] of Object.entries(teams)) {
-        if (team.agents.includes(agentId)) {
+        if (getTeamMemberIds(team).includes(agentId)) {
             return { teamId, team };
         }
     }

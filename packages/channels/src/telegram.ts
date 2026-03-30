@@ -78,6 +78,7 @@ const pendingMessages = new Map<string, PendingMessage>();
 let processingOutgoingQueue = false;
 let lastPollingActivity = Date.now();
 let pollingRestartInProgress = false;
+let consecutive409Count = 0;
 
 // Logger
 function log(level: string, message: string): void {
@@ -259,14 +260,60 @@ function pairingMessage(code: string): string {
 }
 
 // Initialize Telegram bot (polling mode)
-// Set explicit server-side long-poll timeout so Telegram returns within 25s.
-// This keeps the polling loop bounded; the watchdog handles stale connections.
-const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, {
-    polling: {
-        autoStart: true,
-        params: { timeout: 25 },
-    },
-});
+// 1. Create without auto-start so we can delete webhook first (fixes 409 conflict)
+// 2. deleteWebhook clears any stale webhook — only one of webhook/polling can be active
+// 3. kickPollingCompetitor terminates any active long-poll from a previous process
+// 4. Short delay lets the kicked connection fully close on Telegram's side
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
+
+/**
+ * Knock any competing getUpdates long-poll off Telegram's servers.
+ * A single getUpdates call with timeout=0 immediately claims the update
+ * channel, causing any other active polling connection to receive a 409
+ * and disconnect on its next receive, clearing the way for our polling.
+ */
+async function kickPollingCompetitor(): Promise<void> {
+    return new Promise((resolve) => {
+        const req = https.get(
+            `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?timeout=0&offset=-1`,
+            (res) => { res.resume(); resolve(); },
+        );
+        req.on('error', () => resolve()); // non-fatal
+        req.setTimeout(8000, () => { req.destroy(); resolve(); });
+    });
+}
+
+(async () => {
+    // deleteWebhook with drop_pending_updates called directly (node-telegram-bot-api typings
+    // don't expose that option, so we use the raw HTTP API)
+    await new Promise<void>((resolve) => {
+        const req = https.get(
+            `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`,
+            (res) => {
+                let body = '';
+                res.on('data', (c: string) => { body += c; });
+                res.on('end', () => {
+                    log('INFO', `Cleared Telegram webhook: ${body.trim()}`);
+                    resolve();
+                });
+            },
+        );
+        req.on('error', (err: Error) => {
+            log('WARN', `deleteWebhook failed (non-fatal): ${err.message}`);
+            resolve();
+        });
+        req.setTimeout(8000, () => { req.destroy(); resolve(); });
+    });
+
+    // Kick any competing polling connection three times, with short pauses, to push
+    // fast-reconnecting external instances far enough back that we can claim the channel.
+    for (let i = 0; i < 3; i++) {
+        await kickPollingCompetitor();
+        await new Promise(resolve => setTimeout(resolve, 800));
+    }
+
+    bot.startPolling();
+})();
 
 // Bot ready
 bot.getMe().then(async (me: TelegramBot.User) => {
@@ -471,17 +518,29 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         }
 
         // Write to queue via API
-        await fetch(`${API_BASE}/api/message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                channel: 'telegram',
-                sender,
-                senderId,
-                message: fullMessage,
-                messageId: queueMessageId,
-            }),
-        });
+        let routerRes: Response;
+        try {
+            routerRes = await fetch(`${API_BASE}/api/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channel: 'telegram',
+                    sender,
+                    senderId,
+                    message: fullMessage,
+                    messageId: queueMessageId,
+                }),
+            });
+        } catch (fetchErr) {
+            // ECONNREFUSED / network error — main/index.js is not running
+            log('ERROR', `Router unreachable (HTTP 000) — is main/index.js running? ${(fetchErr as Error).message}`);
+            await sendTelegramMessage(msg.chat.id, '⚠️ Router is down. The backend processor is not reachable. Please restart TinyAGI with /restart or `tinyagi restart`.', { reply_to_message_id: msg.message_id });
+            return;
+        }
+
+        if (!routerRes.ok) {
+            log('ERROR', `Router returned HTTP ${routerRes.status} for message ${queueMessageId}`);
+        }
 
         log('INFO', `Queued message ${queueMessageId}`);
 
@@ -633,6 +692,9 @@ async function restartPolling(reason: string, delayMs = 5000): Promise<void> {
 
     try {
         log('INFO', `Restarting polling (${reason})...`);
+        // Kick any competing connection before reclaiming the channel
+        await kickPollingCompetitor();
+        await new Promise(resolve => setTimeout(resolve, 500));
         await bot.startPolling();
         lastPollingActivity = Date.now();
         log('INFO', 'Polling restarted successfully');
@@ -650,12 +712,28 @@ bot.on('polling_error', (error: Error) => {
     // ETELEGRAM 409 = another instance running (stale connection after sleep)
     // EFATAL = unrecoverable
     if (error.message.includes('EFATAL') || error.message.includes('409')) {
+        if (error.message.includes('409')) {
+            consecutive409Count++;
+            if (consecutive409Count >= 5) {
+                log('ERROR',
+                    `[409 PERSISTENT — ${consecutive409Count} consecutive failures] ` +
+                    `Bot token @${TELEGRAM_BOT_TOKEN.slice(0, 10)}… is being polled by an EXTERNAL process. ` +
+                    `Find and stop it (another server, Docker container, Replit, phone app, etc.) ` +
+                    `or create a new bot via @BotFather and update TELEGRAM_BOT_TOKEN in .env.`
+                );
+            }
+        }
         restartPolling('Fatal polling error detected', 10000);
+    } else {
+        consecutive409Count = 0;
     }
 });
 
 // Track polling activity — any event from the bot means polling is alive
-bot.on('message', () => { lastPollingActivity = Date.now(); });
+bot.on('message', () => {
+    lastPollingActivity = Date.now();
+    consecutive409Count = 0;
+});
 
 // Watchdog: if no polling activity for 5 minutes, verify connectivity before restarting.
 // After 10 minutes of silence, force-restart polling even if getMe() works — a stale

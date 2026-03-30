@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import {
     MessageJobData,
-    getSettings, getAgents, getTeams, LOG_FILE, FILES_DIR,
+    getSettings, getAgents, getTeams, LOG_FILE, FILES_DIR, getSkillsBankDir,
     log, emitEvent,
     parseAgentRouting, getAgentResetFlag,
     invokeAgent,
@@ -22,6 +22,8 @@ import {
     closeQueueDb, queueEvents,
     insertAgentMessage,
     startScheduler, stopScheduler,
+    getAllAgents, touchSession,
+    ensureAgentDirectory,
 } from '@tinyagi/core';
 import { startApiServer } from '@tinyagi/server';
 import {
@@ -58,7 +60,7 @@ async function processMessage(dbMsg: any): Promise<void> {
     }
 
     const settings = getSettings();
-    const agents = getAgents(settings);
+    const agents = getAllAgents();  // persistent + session agents
     const teams = getTeams(settings);
     const workspacePath = settings?.workspace?.path || path.join(require('os').homedir(), 'tinyagi-workspace');
 
@@ -86,6 +88,10 @@ async function processMessage(dbMsg: any): Promise<void> {
     }
 
     const agent = agents[agentId];
+    // Touch session activity for session agents
+    if (agentId.startsWith('session_')) {
+        try { touchSession(agentId); } catch {}
+    }
     if (!isInternal) {
         emitEvent('agent_routed', { agentId, agentName: agent.name, provider: agent.provider, model: agent.model, isTeamRouted });
     }
@@ -97,6 +103,15 @@ async function processMessage(dbMsg: any): Promise<void> {
         fs.unlinkSync(agentResetFlag);
     }
 
+    // Extract project working directory override tag (e.g. [workdir:/path/to/project])
+    // This tag is injected by the UI when a task belongs to a project with a working_directory set.
+    let workingDirOverride: string | undefined;
+    const workdirMatch = message.match(/\[workdir:([^\]]+)\]/);
+    if (workdirMatch) {
+        workingDirOverride = workdirMatch[1].trim();
+        message = message.replace(/\s*\[workdir:[^\]]+\]/, '').trim();
+    }
+
     ({ text: message } = await runIncomingHooks(message, { channel, sender, messageId, originalMessage: rawMessage }));
 
     emitEvent('chain_step_start', { agentId, agentName: agent.name, fromAgent: data.fromAgent || null });
@@ -105,7 +120,7 @@ async function processMessage(dbMsg: any): Promise<void> {
         response = await invokeAgent(agent, agentId, message, workspacePath, shouldReset, agents, teams, (text) => {
             log('INFO', `Agent ${agentId}: ${text}`);
             emitEvent('agent_progress', { agentId, agentName: agent.name, text, messageId });
-        });
+        }, workingDirOverride);
     } catch (error) {
         const provider = agent.provider || 'anthropic';
         const providerLabel = provider === 'openai' ? 'Codex' : provider === 'opencode' ? 'OpenCode' : 'Claude';
@@ -200,7 +215,7 @@ async function processQueue(): Promise<void> {
 
 function logAgentConfig(): void {
     const settings = getSettings();
-    const agents = getAgents(settings);
+    const agents = getAllAgents();
     const teams = getTeams(settings);
 
     const agentCount = Object.keys(agents).length;
@@ -213,7 +228,10 @@ function logAgentConfig(): void {
     if (teamCount > 0) {
         log('INFO', `Loaded ${teamCount} team(s):`);
         for (const [id, team] of Object.entries(teams)) {
-            log('INFO', `  ${id}: ${team.name} [agents: ${team.agents.join(', ')}] leader=${team.leader_agent}`);
+            const memberIds = Array.isArray(team.members)
+            ? team.members.map((m: { agent_id: string }) => m.agent_id)
+            : ((team as unknown as { agents?: string[] }).agents || []);
+        log('INFO', `  ${id}: ${team.name} [agents: ${memberIds.join(', ')}] leader=${team.leader_agent}`);
         }
     }
 }
@@ -221,6 +239,26 @@ function logAgentConfig(): void {
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 initQueueDb();
+
+// Provision agent directories on startup (ensures skills symlinks exist)
+{
+    const startupSettings = getSettings();
+    const startupAgents = getAgents(startupSettings);
+    const workspacePath = startupSettings?.workspace?.path || path.join(require('os').homedir(), 'tinyagi-workspace');
+    const skillsDir = path.join(workspacePath, 'skills');
+    const bankDir = getSkillsBankDir();
+    for (const [id, agent] of Object.entries(startupAgents)) {
+        const agentDir = path.isAbsolute(agent.working_directory)
+            ? agent.working_directory
+            : path.join(workspacePath, agent.working_directory);
+        try {
+            ensureAgentDirectory(agentDir, skillsDir, agent.skills ?? null, bankDir);
+        } catch (err) {
+            log('WARN', `Failed to provision agent directory for ${id}: ${(err as Error).message}`);
+        }
+    }
+    log('INFO', `Provisioned ${Object.keys(startupAgents).length} agent director(ies)`);
+}
 
 const apiServer = startApiServer();
 

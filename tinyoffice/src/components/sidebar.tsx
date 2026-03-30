@@ -6,13 +6,14 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/lib/hooks";
 import {
-  getAgents, getTeams, type AgentConfig, type TeamConfig,
+  getAgents, getTeams, getSessions,
+  type AgentConfig, type TeamConfig, type SessionConfig,
 } from "@/lib/api";
 import Image from "next/image";
 import {
   Plus, Hash, LayoutDashboard, ScrollText,
   Settings, SlidersHorizontal, ClipboardList, Building2,
-  FolderKanban, Sun, Moon,
+  FolderKanban, Sun, Moon, Activity, Cpu,
 } from "lucide-react";
 
 const AGENT_COLORS = [
@@ -32,9 +33,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const { data: agents } = usePolling<Record<string, AgentConfig>>(getAgents, 0);
+  const { data: sessions } = usePolling<SessionConfig[]>(getSessions, 5000);
   const { data: teams } = usePolling<Record<string, TeamConfig>>(getTeams, 0);
 
   const agentEntries = agents ? Object.entries(agents) : [];
+  const sessionEntries = sessions ?? [];
   const teamEntries = teams ? Object.entries(teams) : [];
 
   return (
@@ -63,6 +66,8 @@ export function Sidebar() {
           { href: "/office", label: "Office", icon: Building2 },
           { href: "/tasks", label: "Tasks", icon: ClipboardList },
           { href: "/projects", label: "Projects", icon: FolderKanban },
+          { href: "/models", label: "Models", icon: Cpu },
+          { href: "/usage", label: "Usage", icon: Activity },
           { href: "/logs", label: "Logs", icon: ScrollText },
         ].map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -142,6 +147,48 @@ export function Sidebar() {
             )}
           </div>
         </div>
+
+        {/* Sessions */}
+        {sessionEntries.length > 0 && (
+          <div className="pt-3">
+            <div className="flex items-center justify-between px-2 mb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Sessions
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {sessionEntries.map((session) => {
+                const href = `/agents/${session.id}`;
+                const active = pathname === href;
+                return (
+                  <Link
+                    key={session.id}
+                    href={href}
+                    className={cn(
+                      "flex items-center gap-2.5 px-2 py-1.5 text-sm transition-colors",
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex h-6 w-6 items-center justify-center text-[10px] font-bold uppercase shrink-0 text-white",
+                      agentColor(session.id)
+                    )}>
+                      {session.name.slice(0, 2)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm leading-tight">{session.name}</p>
+                      <p className="truncate text-[10px] text-muted-foreground leading-tight">
+                        {session.provider}/{session.model}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Chat Rooms */}
         <div className="pt-4">

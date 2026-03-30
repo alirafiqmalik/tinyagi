@@ -43,52 +43,128 @@ export function copyDirSync(src: string, dest: string): void {
 }
 
 /**
- * Sync default skills from SCRIPT_DIR into an agent workspace and ensure
- * .claude/skills is a symlink to .agents/skills (not a copy).
+ * Seed the shared workspace/skills/ library from SCRIPT_DIR/.agents/skills/ (never
+ * overwrites existing skills), then wire the agent's .claude/skills/ directory so it
+ * contains only symlinks for the assigned skills.
+ *
+ * Skills are sourced from (highest priority first):
+ *   1. skills-bank/ directory (if provided)
+ *   2. workspace/skills/ directory
+ *   3. SCRIPT_DIR/.agents/skills/ (built-in defaults seeded into workspace/skills/)
+ *
+ * @param agentDir           Absolute path to the agent working directory.
+ * @param workspaceSkillsDir Absolute path to workspace/skills/ (shared library).
+ * @param assignedSkills     Skill IDs to enable.  undefined / null = enable all.
+ * @param skillsBankDir      Optional path to ~/.tinyagi/skills-bank/ to supplement workspace skills.
  */
-export function syncAgentSkills(agentDir: string): void {
+export function syncAgentSkills(
+    agentDir: string,
+    workspaceSkillsDir: string,
+    assignedSkills?: string[] | null,
+    skillsBankDir?: string,
+): void {
     const sourceSkills = path.join(SCRIPT_DIR, '.agents', 'skills');
-    if (!fs.existsSync(sourceSkills)) return;
 
-    // Copy default skills into .agents/skills (overwrites existing, preserves custom)
-    const targetAgentsSkills = path.join(agentDir, '.agents', 'skills');
-    fs.mkdirSync(targetAgentsSkills, { recursive: true });
-    for (const entry of fs.readdirSync(sourceSkills, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const dest = path.join(targetAgentsSkills, entry.name);
-        fs.rmSync(dest, { recursive: true, force: true });
-        copyDirSync(path.join(sourceSkills, entry.name), dest);
+    // Seed workspace/skills/ — only add skills that are not already there
+    if (fs.existsSync(sourceSkills)) {
+        fs.mkdirSync(workspaceSkillsDir, { recursive: true });
+        for (const entry of fs.readdirSync(sourceSkills, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const dest = path.join(workspaceSkillsDir, entry.name);
+            if (!fs.existsSync(dest)) {
+                copyDirSync(path.join(sourceSkills, entry.name), dest);
+            }
+        }
     }
 
-    // Ensure .claude/skills is a symlink to ../.agents/skills
-    const targetClaudeSkills = path.join(agentDir, '.claude', 'skills');
+    // Remove legacy per-agent .agents/ directory (no longer needed)
+    const legacyAgentsDir = path.join(agentDir, '.agents');
+    if (fs.existsSync(legacyAgentsDir)) {
+        fs.rmSync(legacyAgentsDir, { recursive: true, force: true });
+    }
+
+    // .claude/skills/ must be a real directory (not a symlink)
+    const claudeSkillsDir = path.join(agentDir, '.claude', 'skills');
     fs.mkdirSync(path.join(agentDir, '.claude'), { recursive: true });
 
-    // Remove whatever exists (real dir, stale symlink, or file) and replace with symlink
     try {
-        const lstat = fs.lstatSync(targetClaudeSkills);
-        if (lstat.isSymbolicLink()) {
-            fs.unlinkSync(targetClaudeSkills);
-        } else {
-            fs.rmSync(targetClaudeSkills, { recursive: true, force: true });
+        const lstat = fs.lstatSync(claudeSkillsDir);
+        if (lstat.isSymbolicLink()) fs.unlinkSync(claudeSkillsDir);
+    } catch { /* doesn't exist */ }
+
+    fs.mkdirSync(claudeSkillsDir, { recursive: true });
+
+    // Build a combined map of skillId → source directory
+    // workspace/skills takes precedence over bank for same ID
+    const skillSources = new Map<string, string>();
+
+    // Add skills from bank first (lower priority)
+    if (skillsBankDir && fs.existsSync(skillsBankDir)) {
+        for (const entry of fs.readdirSync(skillsBankDir, { withFileTypes: true })) {
+            if (entry.isDirectory() && !entry.name.startsWith('.')) {
+                skillSources.set(entry.name, path.join(skillsBankDir, entry.name));
+            }
         }
-    } catch {
-        // Doesn't exist — that's fine
     }
 
-    fs.symlinkSync(path.join('..', '.agents', 'skills'), targetClaudeSkills);
+    // Add workspace skills (overwrite any same-ID bank entries)
+    if (fs.existsSync(workspaceSkillsDir)) {
+        for (const entry of fs.readdirSync(workspaceSkillsDir, { withFileTypes: true })) {
+            if (entry.isDirectory() && !entry.name.startsWith('.')) {
+                skillSources.set(entry.name, path.join(workspaceSkillsDir, entry.name));
+            }
+        }
+    }
+
+    const available = [...skillSources.keys()];
+    const toAssign = assignedSkills ?? available;
+
+    // Remove stale symlinks for skills no longer assigned
+    for (const entry of fs.readdirSync(claudeSkillsDir, { withFileTypes: true })) {
+        if (!toAssign.includes(entry.name)) {
+            fs.rmSync(path.join(claudeSkillsDir, entry.name), { recursive: true, force: true });
+        }
+    }
+
+    // Create / update symlinks for assigned skills
+    for (const skillId of toAssign) {
+        const skillSource = skillSources.get(skillId);
+        if (!skillSource || !fs.existsSync(skillSource)) continue;
+
+        const symlinkPath = path.join(claudeSkillsDir, skillId);
+        const relTarget = path.relative(claudeSkillsDir, skillSource);
+
+        try {
+            const lstat = fs.lstatSync(symlinkPath);
+            if (lstat.isSymbolicLink() && fs.readlinkSync(symlinkPath) === relTarget) continue;
+            fs.rmSync(symlinkPath, { recursive: true, force: true });
+        } catch { /* doesn't exist */ }
+
+        fs.symlinkSync(relTarget, symlinkPath);
+    }
 }
 
 /**
  * Ensure agent directory exists with template files from SCRIPT_DIR.
- * Safe to call on existing directories — will sync skills and ensure symlinks.
+ * Safe to call on existing directories — will sync skills on every call.
+ *
+ * @param agentDir           Absolute path to the agent working directory.
+ * @param workspaceSkillsDir Path to workspace/skills/ shared library.  When
+ *                           provided, skills are synced; omit to skip skill setup.
+ * @param assignedSkills     Skill IDs to enable.  undefined = all available.
+ * @param skillsBankDir      Optional path to ~/.tinyagi/skills-bank/ to supplement workspace skills.
  */
-export function ensureAgentDirectory(agentDir: string): void {
+export function ensureAgentDirectory(
+    agentDir: string,
+    workspaceSkillsDir?: string,
+    assignedSkills?: string[] | null,
+    skillsBankDir?: string,
+): void {
     const isNew = !fs.existsSync(agentDir);
     fs.mkdirSync(agentDir, { recursive: true });
 
     if (isNew) {
-        // Copy .claude directory
+        // Copy .claude directory (skills will be overwritten by syncAgentSkills below)
         const sourceClaudeDir = path.join(SCRIPT_DIR, '.claude');
         if (fs.existsSync(sourceClaudeDir)) {
             copyDirSync(sourceClaudeDir, path.join(agentDir, '.claude'));
@@ -115,8 +191,10 @@ export function ensureAgentDirectory(agentDir: string): void {
     // Create memory directory for hierarchical memory system
     fs.mkdirSync(path.join(agentDir, 'memory'), { recursive: true });
 
-    // Always sync skills (keeps them up to date for both new and existing dirs)
-    syncAgentSkills(agentDir);
+    // Sync skills if a shared library path was provided
+    if (workspaceSkillsDir) {
+        syncAgentSkills(agentDir, workspaceSkillsDir, assignedSkills, skillsBankDir);
+    }
 }
 
 /**
@@ -137,12 +215,17 @@ export function buildSystemPrompt(
     const startMarker = '<!-- TEAMMATES_START -->';
     const endMarker = '<!-- TEAMMATES_END -->';
 
-    // Collect teams this agent belongs to
+    // Collect teams this agent belongs to (supports both legacy agents[] and new members[])
     const agentTeams: { teamId: string; teamName: string; leaderId: string; members: { id: string; name: string; model: string }[] }[] = [];
     for (const [teamId, team] of Object.entries(teams)) {
-        if (!team.agents.includes(agentId)) continue;
+        // New format: members[]
+        const memberIds: string[] = Array.isArray(team.members)
+            ? team.members.map((m: { agent_id: string }) => m.agent_id)
+            : ((team as unknown as { agents?: string[] }).agents || []);
+
+        if (!memberIds.includes(agentId)) continue;
         const members: { id: string; name: string; model: string }[] = [];
-        for (const tid of team.agents) {
+        for (const tid of memberIds) {
             if (tid === agentId) continue;
             const agent = agents[tid];
             if (agent) {
@@ -194,6 +277,40 @@ export function buildSystemPrompt(
         prompt = prompt.substring(0, memStartIdx + memStartMarker.length) + memBlock + prompt.substring(memEndIdx);
     }
 
+    // Inject available skills list — read SKILL.md files from .claude/skills/
+    const claudeSkillsDir = path.join(agentDir, '.claude', 'skills');
+    let skillsBlock = '';
+    if (fs.existsSync(claudeSkillsDir)) {
+        const skillEntries: { name: string; description: string }[] = [];
+        try {
+            for (const entry of fs.readdirSync(claudeSkillsDir, { withFileTypes: true })) {
+                if (entry.name.startsWith('.')) continue;
+                // Resolve through symlinks
+                const skillDir = path.join(claudeSkillsDir, entry.name);
+                const skillMd = path.join(skillDir, 'SKILL.md');
+                let skillName = entry.name;
+                let skillDesc = '';
+                if (fs.existsSync(skillMd)) {
+                    try {
+                        const content = fs.readFileSync(skillMd, 'utf8');
+                        const fm = content.match(/^---\s*\n([\s\S]*?)\n---/)?.[1] || '';
+                        const nameMatch = fm.match(/^name:\s*["']?(.+?)["']?\s*$/m);
+                        const descMatch = fm.match(/^description:\s*["']?(.+?)["']?\s*$/m);
+                        if (nameMatch) skillName = nameMatch[1];
+                        if (descMatch) skillDesc = descMatch[1];
+                    } catch { /* skip */ }
+                }
+                skillEntries.push({ name: skillName, description: skillDesc });
+            }
+        } catch { /* skip */ }
+        if (skillEntries.length > 0) {
+            skillsBlock = '\n\n## Your Skills\n\n' +
+                skillEntries.map(s => `- **${s.name}**${s.description ? ': ' + s.description : ''}`).join('\n');
+        }
+    }
+    // Prepend skills to the system prompt so small models see them early
+    if (skillsBlock) prompt = skillsBlock.trimStart() + '\n\n' + prompt;
+
     // Append user's custom AGENTS.md from agent workspace (if non-empty)
     const userAgentsMd = path.join(agentDir, 'AGENTS.md');
     let userContent = '';
@@ -224,6 +341,7 @@ export function buildSystemPrompt(
         builtin: BUILTIN_AGENT_INSTRUCTIONS_HASH,
         teammateBlock: block,
         memoryTree,
+        skillsBlock,
         userContent,
         promptFileContent,
         configSystemPrompt: configSystemPrompt || '',

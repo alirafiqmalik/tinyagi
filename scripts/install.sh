@@ -7,7 +7,8 @@
 
 set -e
 
-INSTALL_HOME="$HOME/.tinyagi"
+# Use custom directory via TINYAGI_INSTALL_HOME (e.g. for project-local setup)
+INSTALL_HOME="${TINYAGI_INSTALL_HOME:-$HOME/.tinyagi}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

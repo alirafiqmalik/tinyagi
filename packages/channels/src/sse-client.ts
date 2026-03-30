@@ -83,7 +83,10 @@ export function createSSEClient(options: SSEClientOptions): { close: () => void 
             });
         });
 
-        req.on('error', () => {
+        req.on('error', (err: NodeJS.ErrnoException) => {
+            if (err.code === 'ECONNREFUSED') {
+                // Logged at caller level or suppress to avoid log spam on reconnect loop
+            }
             scheduleReconnect();
         });
 

@@ -62,6 +62,19 @@ export function initQueueDb(): void {
         CREATE INDEX IF NOT EXISTS idx_agent_messages_agent ON agent_messages(agent_id, created_at);
     `);
 
+    // Agent sessions table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_sessions (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            config TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at INTEGER NOT NULL,
+            last_active_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status);
+    `);
+
     // Migrations for existing databases
     const respCols = db.prepare("PRAGMA table_info(responses)").all() as { name: string }[];
     if (!respCols.some(c => c.name === 'metadata')) {
@@ -235,6 +248,37 @@ export function insertChatMessage(teamId: string, fromAgent: string, message: st
 
 export function getChatMessages(teamId: string, limit = 100): any[] {
     return getDb().prepare(`SELECT * FROM chat_messages WHERE team_id=? ORDER BY created_at DESC LIMIT ?`).all(teamId, limit);
+}
+
+// ── Clear agent history ─────────────────────────────────────────────────────
+
+export function clearAgentHistory(agentId: string): number {
+    return getDb().prepare(`DELETE FROM agent_messages WHERE agent_id=?`).run(agentId).changes;
+}
+
+// ── Agent sessions ──────────────────────────────────────────────────────────
+
+export function insertSession(id: string, name: string, config: string): void {
+    const now = Date.now();
+    getDb().prepare(
+        `INSERT INTO agent_sessions (id,name,config,status,created_at,last_active_at) VALUES (?,?,?,'active',?,?)`
+    ).run(id, name, config, now, now);
+}
+
+export function getActiveSessions(): any[] {
+    return getDb().prepare(`SELECT * FROM agent_sessions WHERE status='active' ORDER BY created_at`).all();
+}
+
+export function getSession(id: string): any | undefined {
+    return getDb().prepare(`SELECT * FROM agent_sessions WHERE id=?`).get(id);
+}
+
+export function updateSessionActivity(id: string): void {
+    getDb().prepare(`UPDATE agent_sessions SET last_active_at=? WHERE id=?`).run(Date.now(), id);
+}
+
+export function destroySession(id: string): boolean {
+    return getDb().prepare(`UPDATE agent_sessions SET status='destroyed' WHERE id=? AND status='active'`).run(id).changes > 0;
 }
 
 // ── Lifecycle ───────────────────────────────────────────────────────────────

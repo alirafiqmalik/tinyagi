@@ -28,7 +28,7 @@ export default function TeamChatPage({
             <Badge variant="outline" className="text-[10px] font-mono">@{id}</Badge>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {team.agents.map((agentId) => {
+            {(team.members?.map(m => m.agent_id) ?? (team as unknown as {agents?: string[]}).agents ?? []).map((agentId: string) => {
               const agent = agents?.[agentId];
               const isLeader = agentId === team.leader_agent;
               return (

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getSettings, getTeams, getChatMessages, genId } from '@tinyagi/core';
+import { getSettings, getTeams, getTeamMemberIds, getChatMessages, genId } from '@tinyagi/core';
 import { postToChatRoom } from '@tinyagi/teams';
 
 const app = new Hono();
@@ -31,7 +31,7 @@ app.post('/api/chatroom/:teamId', async (c) => {
         return c.json({ error: 'message is required' }, 400);
     }
 
-    const id = postToChatRoom(teamId, 'user', body.message.trim(), team.agents, {
+    const id = postToChatRoom(teamId, 'user', body.message.trim(), getTeamMemberIds(team), {
         channel: 'chatroom',
         sender: 'user',
         messageId: genId('chatroom'),

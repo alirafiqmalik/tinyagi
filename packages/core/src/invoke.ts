@@ -1,10 +1,12 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import OpenAI from 'openai';
 import { AgentConfig, CustomProvider, TeamConfig } from './types';
-import { SCRIPT_DIR, resolveModel, getSettings } from './config';
+import { SCRIPT_DIR, resolveModel, getSettings, getWorkspaceSkillsDir, getSkillsBankDir } from './config';
 import { log } from './logging';
 import { ensureAgentDirectory, buildSystemPrompt } from './agent';
+import { resolvePermissions, getPermissionFlags } from './permissions';
 
 export async function runCommand(command: string, args: string[], cwd?: string, envOverrides?: Record<string, string>): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -166,11 +168,14 @@ export async function invokeAgent(
     agents: Record<string, AgentConfig> = {},
     teams: Record<string, TeamConfig> = {},
     onEvent?: (text: string) => void,
+    workingDirOverride?: string,
 ): Promise<string> {
     // Ensure agent directory exists with config files
     const agentDir = path.join(workspacePath, agentId);
     const isNewAgent = !fs.existsSync(agentDir);
-    ensureAgentDirectory(agentDir);
+    const workspaceSkillsDir = getWorkspaceSkillsDir(getSettings());
+    const skillsBankDir = getSkillsBankDir();
+    ensureAgentDirectory(agentDir, workspaceSkillsDir, agent.skills, skillsBankDir);
     if (isNewAgent) {
         log('INFO', `Initialized agent directory with config files: ${agentDir}`);
     }
@@ -178,12 +183,18 @@ export async function invokeAgent(
     // Build system prompt in-memory (built-in instructions + teammates + memory + user customization)
     const systemPrompt = buildSystemPrompt(agentId, agentDir, agents, teams, agent.system_prompt, agent.prompt_file);
 
-    // Resolve working directory
-    const workingDir = agent.working_directory
-        ? (path.isAbsolute(agent.working_directory)
-            ? agent.working_directory
-            : path.join(workspacePath, agent.working_directory))
-        : agentDir;
+    // Resolve working directory — project override takes precedence over agent config
+    const workingDir = workingDirOverride
+        ? workingDirOverride
+        : agent.working_directory
+            ? (path.isAbsolute(agent.working_directory)
+                ? agent.working_directory
+                : path.join(workspacePath, agent.working_directory))
+            : agentDir;
+
+    if (workingDirOverride) {
+        log('INFO', `Using project working directory override: ${workingDirOverride} (agent: ${agentId})`);
+    }
 
     const rawProvider = agent.provider || 'anthropic';
 
@@ -202,7 +213,11 @@ export async function invokeAgent(
             throw new Error(`Custom provider '${customId}' not found in settings.custom_providers`);
         }
         // Map harness back to built-in provider for CLI selection
-        provider = customProvider.harness === 'codex' ? 'openai' : 'anthropic';
+        if (customProvider.harness === 'native-openai') {
+            provider = 'native-openai';
+        } else {
+            provider = customProvider.harness === 'codex' ? 'openai' : 'anthropic';
+        }
 
         // Build env overrides based on harness
         if (customProvider.harness === 'claude') {
@@ -219,7 +234,13 @@ export async function invokeAgent(
         // For built-in providers, check if auth_token is configured in settings
         const settings = getSettings();
         if (provider === 'anthropic' && settings.models?.anthropic?.auth_token) {
-            envOverrides.ANTHROPIC_API_KEY = settings.models.anthropic.auth_token;
+            const token = settings.models.anthropic.auth_token;
+            // OAuth tokens (sk-ant-oat*) are for the Claude Code CLI which manages its own
+            // auth credentials — do not override, let the CLI use its stored session.
+            // Only set ANTHROPIC_API_KEY for real API keys (sk-ant-api*).
+            if (!token.startsWith('sk-ant-oat')) {
+                envOverrides.ANTHROPIC_API_KEY = token;
+            }
         } else if (provider === 'openai' && settings.models?.openai?.auth_token) {
             envOverrides.OPENAI_API_KEY = settings.models.openai.auth_token;
         }
@@ -248,7 +269,13 @@ export async function invokeAgent(
         if (systemPrompt) {
             codexArgs.push('-c', `developer_instructions=${systemPrompt}`);
         }
-        codexArgs.push('--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox', '--json', message);
+        const codexPermissions = resolvePermissions(agent);
+        const codexPermFlags = getPermissionFlags(codexPermissions);
+        codexArgs.push('--skip-git-repo-check');
+        if (codexPermFlags.skipSandbox) {
+            codexArgs.push('--dangerously-bypass-approvals-and-sandbox');
+        }
+        codexArgs.push('--json', message);
 
         let response = '';
 
@@ -350,6 +377,74 @@ export async function invokeAgent(
         }
 
         return response || 'Sorry, I could not generate a response from OpenCode.';
+    } else if (provider === 'native-openai') {
+        // Native OpenAI-compatible SDK — no CLI subprocess required.
+        // Conversation history is persisted as JSON in the agent directory.
+        log('DEBUG', `Using native OpenAI SDK (agent: ${agentId}, model: ${effectiveModel})`);
+
+        const client = new OpenAI({
+            baseURL: customProvider!.base_url,
+            apiKey: customProvider!.api_key,
+        });
+
+        const historyFile = path.join(agentDir, 'conversation.json');
+
+        type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+        let history: ChatMessage[] = [];
+
+        if (!shouldReset && fs.existsSync(historyFile)) {
+            try {
+                history = JSON.parse(fs.readFileSync(historyFile, 'utf8'));
+            } catch {
+                history = [];
+            }
+        } else if (shouldReset) {
+            log('INFO', `Resetting native-openai conversation for agent: ${agentId}`);
+            if (fs.existsSync(historyFile)) fs.unlinkSync(historyFile);
+        }
+
+        // Always keep the system prompt current (skills, memory, teammates update over time)
+        if (systemPrompt) {
+            if (history.length > 0 && history[0].role === 'system') {
+                history[0].content = systemPrompt;
+            } else {
+                history.unshift({ role: 'system', content: systemPrompt });
+            }
+        }
+
+        history.push({ role: 'user', content: message });
+
+        let responseText = '';
+
+        if (onEvent) {
+            const stream = await client.chat.completions.create({
+                model: effectiveModel,
+                messages: history,
+                stream: true,
+            });
+
+            for await (const chunk of stream) {
+                const delta = chunk.choices[0]?.delta?.content;
+                if (delta) {
+                    responseText += delta;
+                    onEvent(delta);
+                }
+            }
+        } else {
+            const completion = await client.chat.completions.create({
+                model: effectiveModel,
+                messages: history,
+                stream: false,
+            });
+            responseText = completion.choices[0]?.message?.content ?? '';
+        }
+
+        if (responseText) {
+            history.push({ role: 'assistant', content: responseText });
+            fs.writeFileSync(historyFile, JSON.stringify(history, null, 2), 'utf8');
+        }
+
+        return responseText || 'Sorry, I could not generate a response from the local LLM.';
     } else {
         // Default to Claude (Anthropic)
         log('DEBUG', `Using Claude provider (agent: ${agentId})`);
@@ -361,7 +456,12 @@ export async function invokeAgent(
         }
 
         const modelId = customProvider ? effectiveModel : resolveModel(effectiveModel, 'anthropic');
-        const claudeArgs = ['--dangerously-skip-permissions'];
+        const permissions = resolvePermissions(agent);
+        const permFlags = getPermissionFlags(permissions);
+        const claudeArgs: string[] = [];
+        if (permFlags.skipSandbox) {
+            claudeArgs.push('--dangerously-skip-permissions');
+        }
         if (modelId) {
             claudeArgs.push('--model', modelId);
         }

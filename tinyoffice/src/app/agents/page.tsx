@@ -1,87 +1,41 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { usePolling } from "@/lib/hooks";
-import { getAgents, saveAgent, deleteAgent, type AgentConfig } from "@/lib/api";
+import {
+  getAgents, getSessions, deleteAgent, deleteSession, patchAgent, getModels,
+  type AgentConfig, type SessionConfig, type ModelDefinition,
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
-  Bot, Cpu, FileText, Plus, Pencil, Trash2,
-  X, Check, Loader2, Swords,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Bot, Cpu, FileText, Plus, Trash2,
+  Loader2, Swords, Pin, Terminal,
 } from "lucide-react";
+import { NewSessionDialog } from "@/components/agent/new-session-dialog";
 import Link from "next/link";
-
-type FormData = {
-  id: string;
-  name: string;
-  provider: string;
-  model: string;
-  system_prompt: string;
-};
-
-const emptyForm: FormData = {
-  id: "", name: "", provider: "anthropic", model: "sonnet",
-  system_prompt: "",
-};
 
 export default function AgentsPage() {
   const { data: agents, loading, refresh } = usePolling<Record<string, AgentConfig>>(getAgents, 0);
-  const [editing, setEditing] = useState<FormData | null>(null);
-  const [isNew, setIsNew] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { data: sessions, refresh: refreshSessions } = usePolling<SessionConfig[]>(getSessions, 5000);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [showNewAgent, setShowNewAgent] = useState(false);
+  const [modelsByVendor, setModelsByVendor] = useState<Record<string, ModelDefinition[]>>({});
 
-  const openNew = () => {
-    setEditing({ ...emptyForm });
-    setIsNew(true);
-    setError("");
-  };
-
-  const openEdit = (id: string, agent: AgentConfig) => {
-    setEditing({
-      id,
-      name: agent.name,
-      provider: agent.provider,
-      model: agent.model,
-      system_prompt: agent.system_prompt || "",
-    });
-    setIsNew(false);
-    setError("");
-  };
-
-  const cancel = () => { setEditing(null); setError(""); };
-
-  const handleSave = useCallback(async () => {
-    if (!editing) return;
-    const { id, name, provider, model, system_prompt } = editing;
-    if (!id.trim() || !name.trim() || !provider.trim() || !model.trim()) {
-      setError("ID, name, provider, and model are required");
-      return;
-    }
-    if (/\s/.test(id)) {
-      setError("ID cannot contain spaces");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await saveAgent(id.toLowerCase(), {
-        name, provider, model,
-        ...(system_prompt ? { system_prompt } : {}),
-      });
-      setEditing(null);
-      refresh();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }, [editing, refresh]);
+  useEffect(() => {
+    getModels().then((data) => setModelsByVendor(data.byVendor)).catch(() => {});
+  }, []);
 
   const handleDelete = useCallback(async (id: string) => {
     setDeleting(id);
@@ -95,6 +49,19 @@ export default function AgentsPage() {
     }
   }, [refresh]);
 
+  const handleModelChange = useCallback(async (id: string, modelId: string) => {
+    const allModels = Object.values(modelsByVendor).flat();
+    const model = allModels.find((m) => m.id === modelId);
+    if (!model) return;
+    const provider = model.vendor;
+    try {
+      await patchAgent(id, { model: modelId, provider });
+      refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [modelsByVendor, refresh]);
+
   return (
     <div className="p-8 space-y-8">
       <div className="flex items-center justify-between">
@@ -107,25 +74,14 @@ export default function AgentsPage() {
             Manage your AI agents
           </p>
         </div>
-        <Button onClick={openNew} disabled={!!editing}>
+        <Button onClick={() => setShowNewAgent(true)}>
           <Plus className="h-4 w-4" />
-          Add Agent
+          New Agent
         </Button>
       </div>
 
-      {/* Editor Modal */}
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <AgentEditor
-            form={editing}
-            setForm={setEditing}
-            isNew={isNew}
-            saving={saving}
-            error={error}
-            onSave={handleSave}
-            onCancel={cancel}
-          />
-        </div>
+      {error && (
+        <p className="text-sm text-destructive">{error}</p>
       )}
 
       {/* Agent Grid */}
@@ -141,134 +97,94 @@ export default function AgentsPage() {
               key={id}
               id={id}
               agent={agent}
-              onEdit={() => openEdit(id, agent)}
               onDelete={() => handleDelete(id)}
               deleting={deleting === id}
+              modelsByVendor={modelsByVendor}
+              onModelChange={(modelId) => handleModelChange(id, modelId)}
             />
           ))}
         </div>
-      ) : !editing ? (
+      ) : (
         <Card>
           <CardContent className="p-12 text-center">
             <Bot className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
             <p className="text-lg font-medium">No agents configured</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Click &quot;Add Agent&quot; to create your first agent
+              Click &quot;New Agent&quot; to create your first agent
             </p>
           </CardContent>
         </Card>
-      ) : null}
+      )}
+
+      {/* Active Agents (sessions) */}
+      {sessions && sessions.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Terminal className="h-4 w-4 text-primary" />
+            Active Agents
+          </h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {sessions.map((session) => (
+              <Card key={session.id} className="transition-colors hover:border-primary/50">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-base">{session.name}</CardTitle>
+                      <CardDescription className="font-mono text-xs">{session.id}</CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={async () => {
+                        if (!confirm("Destroy this agent?")) return;
+                        await deleteSession(session.id);
+                        refreshSessions();
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="outline">{session.model}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">session</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{session.working_directory}</p>
+                  <div className="pt-2 mt-2 border-t">
+                    <Link href={`/agents/${session.id}`}>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5">
+                        <Bot className="h-3 w-3" />
+                        Open Chat
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <NewSessionDialog
+        open={showNewAgent}
+        onClose={() => setShowNewAgent(false)}
+        onCreated={() => { refreshSessions(); setShowNewAgent(false); }}
+      />
     </div>
   );
 }
 
-function AgentEditor({
-  form, setForm, isNew, saving, error, onSave, onCancel,
-}: {
-  form: FormData;
-  setForm: (f: FormData) => void;
-  isNew: boolean;
-  saving: boolean;
-  error: string;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  const set = (field: keyof FormData, value: string) =>
-    setForm({ ...form, [field]: value });
-
-  return (
-    <Card className="w-full max-w-lg border-border">
-      <CardContent className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold flex items-center gap-2">
-              {isNew ? <Plus className="h-4 w-4 text-primary" /> : <Pencil className="h-4 w-4 text-primary" />}
-              {isNew ? "New Agent" : `Edit @${form.id}`}
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onCancel}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Agent ID</label>
-            <Input
-              value={form.id}
-              onChange={(e) => set("id", e.target.value)}
-              placeholder="e.g. coder"
-              disabled={!isNew}
-              className="font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Display Name</label>
-            <Input
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="e.g. Coder"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Provider</label>
-            <Select value={form.provider} onValueChange={(v) => set("provider", v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="anthropic">anthropic</SelectItem>
-                <SelectItem value="openai">openai</SelectItem>
-                <SelectItem value="opencode">opencode</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Model</label>
-            <Input
-              value={form.model}
-              onChange={(e) => set("model", e.target.value)}
-              placeholder="e.g. sonnet, opus, gpt-5.3-codex"
-              className="font-mono"
-            />
-          </div>
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">System Prompt (optional)</label>
-            <Textarea
-              value={form.system_prompt}
-              onChange={(e) => set("system_prompt", e.target.value)}
-              placeholder="Custom system prompt for this agent..."
-              rows={3}
-              className="text-sm"
-            />
-          </div>
-        </div>
-
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
-
-        <div className="flex items-center gap-2 pt-2">
-          <Button onClick={onSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {isNew ? "Create Agent" : "Save Changes"}
-          </Button>
-          <Button variant="ghost" onClick={onCancel} disabled={saving}>
-            Cancel
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function AgentCard({
-  id, agent, onEdit, onDelete, deleting,
+  id, agent, onDelete, deleting, modelsByVendor, onModelChange,
 }: {
   id: string;
   agent: AgentConfig;
-  onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
+  modelsByVendor: Record<string, ModelDefinition[]>;
+  onModelChange: (modelId: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -292,10 +208,12 @@ function AgentCard({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={onEdit} className="h-8 w-8">
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            {confirmDelete ? (
+            {id === "default" ? (
+              <Badge variant="outline" className="text-[10px]">
+                <Pin className="h-3 w-3 mr-1" />
+                Default
+              </Badge>
+            ) : confirmDelete ? (
               <div className="flex items-center gap-1">
                 <Button
                   variant="destructive"
@@ -319,12 +237,33 @@ function AgentCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Model selector */}
         <div className="flex items-center gap-2">
-          <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-          <Badge className={providerColors[agent.provider] || "bg-secondary text-secondary-foreground"}>
-            {agent.provider}
-          </Badge>
-          <Badge variant="outline">{agent.model}</Badge>
+          <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Select value={agent.model} onValueChange={onModelChange}>
+            <SelectTrigger className="h-8 text-xs flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(modelsByVendor).map(([vendor, vendorModels]) => {
+                const vendorLabel = vendor.startsWith("custom:")
+                  ? `Custom (${vendor.slice("custom:".length)})`
+                  : vendor;
+                return (
+                  <SelectGroup key={vendor}>
+                    <SelectLabel className="capitalize text-[10px]">{vendorLabel}</SelectLabel>
+                    {vendorModels.map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="text-xs">
+                        {m.display_name}
+                        {m.installed === true && " (installed)"}
+                        {m.installed === false && " (not installed)"}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
 
         {agent.system_prompt && (

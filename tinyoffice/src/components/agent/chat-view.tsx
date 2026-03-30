@@ -5,9 +5,11 @@ import { usePolling, timeAgo } from "@/lib/hooks";
 import {
   getAgentMessages,
   sendMessage,
+  clearAgentHistory,
   type AgentMessage,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   ChatContainerRoot,
   ChatContainerContent,
@@ -20,7 +22,7 @@ import {
   PromptInputTextarea,
 } from "@/components/ui/prompt-input";
 import { Markdown } from "@/components/ui/markdown";
-import { Bot, ArrowUp, Square } from "lucide-react";
+import { Bot, ArrowUp, Square, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AgentChatItem {
@@ -77,6 +79,20 @@ export function AgentChatView({
   const [messages, setMessages] = useState<AgentChatItem[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClearHistory = useCallback(async () => {
+    if (!confirm(`Clear all chat history for ${agentName}?`)) return;
+    setClearing(true);
+    try {
+      await clearAgentHistory(agentId);
+      setMessages([]);
+    } catch {
+      // ignore
+    } finally {
+      setClearing(false);
+    }
+  }, [agentId, agentName]);
 
   const fetchMessages = useCallback(async () => {
     return getAgentMessages(agentId, 200, 0);
@@ -149,12 +165,30 @@ export function AgentChatView({
 
   return (
     <div className="flex h-full flex-col relative">
-      {/* Polling status */}
-      <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5">
-        <div className={cn("h-1.5 w-1.5", pollError ? "bg-destructive" : "bg-primary animate-pulse-dot")} />
-        <span className="text-[10px] text-muted-foreground">
-          {pollError ? "Disconnected" : "Connected"}
-        </span>
+      {/* Polling status + Clear history */}
+      <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                disabled={clearing || messages.length === 0}
+                onClick={handleClearHistory}
+              >
+                <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear chat history</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <div className="flex items-center gap-1.5">
+          <div className={cn("h-1.5 w-1.5", pollError ? "bg-destructive" : "bg-primary animate-pulse-dot")} />
+          <span className="text-[10px] text-muted-foreground">
+            {pollError ? "Disconnected" : "Connected"}
+          </span>
+        </div>
       </div>
 
       {/* Messages */}

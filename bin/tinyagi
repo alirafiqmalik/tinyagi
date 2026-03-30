@@ -19,8 +19,8 @@ TINYAGI_DIR="$(cd "$(dirname "$TINYAGI_BIN")" && pwd)"
 # The actual installation is one directory up from bin/
 REPO_ROOT="$(dirname "$TINYAGI_DIR")"
 
-# Installed CLI always uses ~/.tinyagi for data
-export TINYAGI_HOME="$HOME/.tinyagi"
+# Use install directory as data home (or TINYAGI_HOME if set)
+export TINYAGI_HOME="${TINYAGI_HOME:-$REPO_ROOT}"
 
 # Execute tinyagi.mjs with all arguments
 exec node "$REPO_ROOT/packages/cli/bin/tinyagi.mjs" "$@"

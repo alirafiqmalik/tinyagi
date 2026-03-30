@@ -2,7 +2,7 @@
 import * as p from '@clack/prompts';
 import fs from 'fs';
 import path from 'path';
-import { CustomProvider, ensureAgentDirectory } from '@tinyagi/core';
+import { CustomProvider, ensureAgentDirectory, getTeamMemberIds, TeamConfig } from '@tinyagi/core';
 import {
     unwrap, cleanId, validateId, required,
     writeSettings, requireSettings, SCRIPT_DIR,
@@ -115,7 +115,7 @@ async function agentRemove(agentId: string) {
 
     const teams = settings.teams || {};
     const memberTeams = Object.entries(teams)
-        .filter(([, t]) => t.agents.includes(agentId))
+        .filter(([, t]) => getTeamMemberIds(t as unknown as TeamConfig).includes(agentId))
         .map(([tid, t]) => ({ id: tid, name: t.name }));
 
     if (memberTeams.length > 0) {
@@ -138,13 +138,19 @@ async function agentRemove(agentId: string) {
     delete settings.agents![agentId];
 
     for (const [tid, team] of Object.entries(teams)) {
-        if (!team.agents.includes(agentId)) continue;
-        const remaining = team.agents.filter(a => a !== agentId);
+        const memberIds = getTeamMemberIds(team as unknown as TeamConfig);
+        if (!memberIds.includes(agentId)) continue;
+        const remaining = memberIds.filter((a: string) => a !== agentId);
         if (remaining.length === 0) {
             delete settings.teams![tid];
             p.log.info(`Removed empty team '${tid}'.`);
         } else {
-            team.agents = remaining;
+            // Update members array (new format)
+            if (Array.isArray(team.members)) {
+                team.members = team.members.filter((m: { agent_id: string }) => m.agent_id !== agentId);
+            } else {
+                (team as unknown as { agents: string[] }).agents = remaining;
+            }
             if (team.leader_agent === agentId) {
                 team.leader_agent = remaining[0];
                 p.log.info(`Team '${tid}' leader reassigned to @${remaining[0]}.`);

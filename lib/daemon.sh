@@ -41,6 +41,22 @@ start_daemon() {
         npm run build
     fi
 
+    # Build TinyOffice if needed (deps missing, or source changed since last build)
+    local office_dir="$SCRIPT_DIR/tinyoffice"
+    if [ -d "$office_dir" ]; then
+        if [ ! -d "$office_dir/node_modules" ] || \
+           [ "$office_dir/package.json" -nt "$office_dir/node_modules/.package-lock.json" ]; then
+            echo -e "${YELLOW}Installing TinyOffice dependencies...${NC}"
+            (cd "$office_dir" && npm install) || echo -e "${RED}TinyOffice npm install failed${NC}"
+        fi
+        if [ ! -f "$office_dir/.next/BUILD_ID" ] || \
+           [ "$office_dir/package.json" -nt "$office_dir/.next/BUILD_ID" ] || \
+           [ -n "$(find "$office_dir/src" -newer "$office_dir/.next/BUILD_ID" -print -quit 2>/dev/null)" ]; then
+            echo -e "${YELLOW}Building TinyOffice...${NC}"
+            (cd "$office_dir" && npm run build) || echo -e "${RED}TinyOffice build failed${NC}"
+        fi
+    fi
+
     # Load settings or run setup wizard
     load_settings
     local load_rc=$?
@@ -144,8 +160,12 @@ start_daemon() {
     echo ""
 
     # --- Build tmux session dynamically ---
-    # Total panes = N channels + 2 (queue, heartbeat)
-    local total_panes=$(( ${#ACTIVE_CHANNELS[@]} + 2 ))
+    # Total panes = N channels + 2 (queue, heartbeat) + 1 (office, if available)
+    local has_office=false
+    [ -d "$SCRIPT_DIR/tinyoffice" ] && has_office=true
+    local office_extra=0
+    $has_office && office_extra=1
+    local total_panes=$(( ${#ACTIVE_CHANNELS[@]} + 2 + office_extra ))
 
     tmux new-session -d -s "$TMUX_SESSION" -n "tinyagi" -c "$SCRIPT_DIR"
 
@@ -184,6 +204,13 @@ start_daemon() {
     # Heartbeat pane
     tmux send-keys -t "$TMUX_SESSION:${win_base}.$pane_idx" "cd '$SCRIPT_DIR' && ./lib/heartbeat-cron.sh" C-m
     tmux select-pane -t "$TMUX_SESSION:${win_base}.$pane_idx" -T "Heartbeat"
+    pane_idx=$((pane_idx + 1))
+
+    # TinyOffice pane (if available)
+    if $has_office && [ -f "$SCRIPT_DIR/tinyoffice/.next/BUILD_ID" ]; then
+        tmux send-keys -t "$TMUX_SESSION:${win_base}.$pane_idx" "cd '$SCRIPT_DIR/tinyoffice' && npm run start" C-m
+        tmux select-pane -t "$TMUX_SESSION:${win_base}.$pane_idx" -T "Office"
+    fi
 
     echo ""
     echo -e "${GREEN}✓ TinyAGI started${NC}"
@@ -262,6 +289,10 @@ start_daemon() {
     echo "  Status:  tinyagi status"
     echo "  Logs:    tinyagi logs [$channel_names|queue]"
     echo "  Attach:  tmux attach -t $TMUX_SESSION"
+    if $has_office; then
+        echo ""
+        echo -e "  Office:  ${BLUE}http://localhost:3000${NC}"
+    fi
     echo ""
 
     local ch_list
@@ -284,17 +315,27 @@ _start_server_only() {
     local pane_base
     pane_base=$(tmux show-option -gv pane-base-index 2>/dev/null || echo 0)
 
-    sleep 2
+    # Add a second pane for TinyOffice if built
+    local office_dir="$SCRIPT_DIR/tinyoffice"
+    if [ -f "$office_dir/.next/BUILD_ID" ]; then
+        tmux split-window -t "$TMUX_SESSION" -c "$SCRIPT_DIR"
+        tmux select-layout -t "$TMUX_SESSION" tiled
+        sleep 2
+        local new_pane
+        new_pane=$(tmux list-panes -t "$TMUX_SESSION" -F '#{pane_id}' | tail -1)
+        tmux send-keys -t "$new_pane" "cd '$office_dir' && npm run start" C-m
+        tmux select-pane -t "$new_pane" -T "Office"
+    else
+        sleep 2
+    fi
+
     tmux send-keys -t "$TMUX_SESSION:${win_base}.$pane_base" "cd '$SCRIPT_DIR' && node packages/main/dist/index.js" C-m
     tmux select-pane -t "$TMUX_SESSION:${win_base}.$pane_base" -T "Queue"
 
     echo -e "${GREEN}✓ TinyAGI started (setup mode — no channels)${NC}"
     echo ""
     echo -e "API server: ${BLUE}http://localhost:${TINYAGI_API_PORT:-3777}${NC}"
-    echo ""
-    echo -e "Complete setup in your browser:"
-    echo -e "  ${BLUE}http://localhost:3000/setup${NC}  (TinyOffice)"
-    echo -e "  or run: ${BLUE}tinyagi office${NC}"
+    echo -e "Office:     ${BLUE}http://localhost:3000${NC}"
     echo ""
     echo -e "Once setup is complete, restart to enable channels:"
     echo -e "  ${BLUE}tinyagi restart${NC}"
@@ -458,6 +499,7 @@ stop_daemon() {
     done
     pkill -f "packages/main/dist/index.js" || true
     pkill -f "heartbeat-cron.sh" || true
+    pkill -f "next-server" || true
 
     echo -e "${GREEN}✓ TinyAGI stopped${NC}"
     log "Daemon stopped"
@@ -536,6 +578,16 @@ status_daemon() {
         echo -e "Heartbeat:       ${GREEN}Running${NC}"
     else
         echo -e "Heartbeat:       ${RED}Not Running${NC}"
+    fi
+
+    if [ -d "$SCRIPT_DIR/tinyoffice" ]; then
+        if tmux list-panes -t "$TMUX_SESSION" -F '#{pane_title}' 2>/dev/null | grep -qx "Office"; then
+            echo -e "TinyOffice:      ${GREEN}Running → http://localhost:3000${NC}"
+        elif pgrep -f "tinyoffice.*next start\|next start.*tinyoffice" > /dev/null 2>&1; then
+            echo -e "TinyOffice:      ${GREEN}Running → http://localhost:3000${NC}"
+        else
+            echo -e "TinyOffice:      ${RED}Not Running${NC}"
+        fi
     fi
 
     # Recent activity per channel (only show if log file exists)

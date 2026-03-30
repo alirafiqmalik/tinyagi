@@ -3,166 +3,210 @@
 import { useState, useCallback } from "react";
 import { usePolling } from "@/lib/hooks";
 import {
-  getAgents, getTeams, saveTeam, deleteTeam,
-  type AgentConfig, type TeamConfig,
+  getAgents, getTeams, getBlueprints,
+  saveTeam, deleteTeam, createBlueprint, updateBlueprint, deleteBlueprint, copyAgentToBlueprint,
+  type AgentConfig, type TeamConfig, type TeamMember, type BlueprintAgent,
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Users, Crown, Bot, ArrowRight, Plus, Pencil, Trash2,
-  X, Check, Loader2,
+  Users, Crown, Bot, Plus, Pencil, Trash2,
+  Loader2, Copy, Cpu, FolderOpen,
 } from "lucide-react";
-
-type FormData = {
-  id: string;
-  name: string;
-  agents: string[];
-  leader_agent: string;
-};
-
-const emptyForm: FormData = {
-  id: "", name: "", agents: [], leader_agent: "",
-};
+import { BlueprintCard } from "@/components/team/blueprint-card";
+import { BlueprintEditor } from "@/components/team/blueprint-editor";
+import { TeamEditor } from "@/components/team/team-editor";
 
 export default function TeamsPage() {
   const { data: agents } = usePolling<Record<string, AgentConfig>>(getAgents, 0);
-  const { data: teams, loading, refresh } = usePolling<Record<string, TeamConfig>>(getTeams, 0);
-  const [editing, setEditing] = useState<FormData | null>(null);
-  const [isNew, setIsNew] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const { data: teams, loading: teamsLoading, refresh: refreshTeams } = usePolling<Record<string, TeamConfig>>(getTeams, 0);
+  const { data: blueprints, refresh: refreshBlueprints } = usePolling<BlueprintAgent[]>(getBlueprints, 0);
 
-  const openNew = () => {
-    setEditing({ ...emptyForm });
-    setIsNew(true);
-    setError("");
-  };
+  // Blueprint modal state
+  const [bpModal, setBpModal] = useState<{ mode: "new" | "edit"; blueprint?: BlueprintAgent } | null>(null);
+  const [copyFromAgent, setCopyFromAgent] = useState("");
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copyError, setCopyError] = useState("");
 
-  const openEdit = (id: string, team: TeamConfig) => {
-    setEditing({
-      id,
-      name: team.name,
-      agents: [...team.agents],
-      leader_agent: team.leader_agent,
-    });
-    setIsNew(false);
-    setError("");
-  };
+  // Team editor state
+  const [teamModal, setTeamModal] = useState<{ teamId: string; team?: TeamConfig } | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState<string | null>(null);
 
-  const cancel = () => { setEditing(null); setError(""); };
+  // ── Blueprint actions ──
 
-  const handleSave = useCallback(async () => {
-    if (!editing) return;
-    const { id, name, agents: teamAgents, leader_agent } = editing;
-    if (!id.trim() || !name.trim()) {
-      setError("ID and name are required");
-      return;
-    }
-    if (/\s/.test(id)) {
-      setError("ID cannot contain spaces");
-      return;
-    }
-    if (teamAgents.length === 0) {
-      setError("At least one agent is required");
-      return;
-    }
-    if (!leader_agent) {
-      setError("A leader agent must be selected");
-      return;
-    }
-    setSaving(true);
-    setError("");
+  const handleBpSaved = useCallback((_bp: BlueprintAgent) => {
+    refreshBlueprints();
+    setBpModal(null);
+  }, [refreshBlueprints]);
+
+  const handleBpDelete = useCallback(async (id: string) => {
+    await deleteBlueprint(id);
+    refreshBlueprints();
+  }, [refreshBlueprints]);
+
+  const handleCopyFromAgent = useCallback(async () => {
+    if (!copyFromAgent) return;
+    setCopyLoading(true);
+    setCopyError("");
     try {
-      await saveTeam(id.toLowerCase(), { name, agents: teamAgents, leader_agent });
-      setEditing(null);
-      refresh();
-    } catch (err) {
-      setError((err as Error).message);
+      await copyAgentToBlueprint(copyFromAgent);
+      refreshBlueprints();
+      setCopyFromAgent("");
+    } catch (e: unknown) {
+      setCopyError((e as Error).message);
     } finally {
-      setSaving(false);
+      setCopyLoading(false);
     }
-  }, [editing, refresh]);
+  }, [copyFromAgent, refreshBlueprints]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    setDeleting(id);
+  // ── Team actions ──
+
+  const handleTeamSaved = useCallback((_id: string, _team: TeamConfig) => {
+    refreshTeams();
+    setTeamModal(null);
+  }, [refreshTeams]);
+
+  const handleTeamDelete = useCallback(async (id: string) => {
+    setDeletingTeam(id);
     try {
       await deleteTeam(id);
-      refresh();
-    } catch (err) {
-      setError((err as Error).message);
+      refreshTeams();
     } finally {
-      setDeleting(null);
+      setDeletingTeam(null);
     }
-  }, [refresh]);
+  }, [refreshTeams]);
+
+  const agentList = Object.entries(agents || {});
+  const bpList = blueprints ?? [];
+  const teamList = Object.entries(teams || {});
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            Teams
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Agent teams for collaborative task execution
-          </p>
-        </div>
-        <Button onClick={openNew} disabled={!!editing}>
-          <Plus className="h-4 w-4" />
-          Add Team
-        </Button>
+    <div className="p-8 space-y-10">
+      {/* ── Header ── */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Users className="h-5 w-5 text-primary" />
+          Teams
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Blueprint Agents define agent identities; Teams assemble them with roles and permissions.
+        </p>
       </div>
 
-      {/* Editor */}
-      {editing && (
-        <TeamEditor
-          form={editing}
-          setForm={setEditing}
-          isNew={isNew}
-          saving={saving}
-          error={error}
-          onSave={handleSave}
-          onCancel={cancel}
-          availableAgents={agents || {}}
-        />
-      )}
-
-      {/* Team List */}
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="h-3 w-3 animate-spin border-2 border-primary border-t-transparent" />
-          Loading teams...
-        </div>
-      ) : teams && Object.keys(teams).length > 0 ? (
-        <div className="space-y-4">
-          {Object.entries(teams).map(([id, team]) => (
-            <TeamCard
-              key={id}
-              id={id}
-              team={team}
-              agents={agents || {}}
-              onEdit={() => openEdit(id, team)}
-              onDelete={() => handleDelete(id)}
-              deleting={deleting === id}
-            />
-          ))}
-        </div>
-      ) : !editing ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Users className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-            <p className="text-lg font-medium">No teams configured</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Click &quot;Add Team&quot; to create your first team
+      {/* ── Blueprint Agents Section ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-purple-500" />
+              Blueprint Agents
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Reusable agent templates — define identity, model, and skills. Add to teams for execution.
             </p>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setBpModal({ mode: "new" })}>
+              <Plus className="h-3.5 w-3.5" /> New Blueprint
+            </Button>
+          </div>
+        </div>
 
-      {/* How it works */}
+        {/* Copy from task agent */}
+        {agentList.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select value={copyFromAgent} onValueChange={setCopyFromAgent}>
+              <SelectTrigger className="w-56 h-8 text-sm">
+                <SelectValue placeholder="Copy from Task Agent..." />
+              </SelectTrigger>
+              <SelectContent>
+                {agentList.map(([id, a]) => (
+                  <SelectItem key={id} value={id}>{a.name} (@{id})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={handleCopyFromAgent} disabled={!copyFromAgent || copyLoading} className="h-8">
+              {copyLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+              Copy as Blueprint
+            </Button>
+            {copyError && <p className="text-xs text-red-500">{copyError}</p>}
+          </div>
+        )}
+
+        {bpList.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Cpu className="h-8 w-8 text-muted-foreground mx-auto mb-3 opacity-50" />
+              <p className="text-sm text-muted-foreground">No blueprints yet — create one to define an agent identity for your teams.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {bpList.map(bp => (
+              <BlueprintCard
+                key={bp.id}
+                blueprint={bp}
+                onEdit={() => setBpModal({ mode: "edit", blueprint: bp })}
+                onDelete={() => handleBpDelete(bp.id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Teams Section ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-500" />
+              Teams
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Assemble blueprints into teams with roles, permissions, and a shared work directory.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => {
+            const id = `team-${Date.now()}`;
+            setTeamModal({ teamId: id });
+          }}>
+            <Plus className="h-3.5 w-3.5" /> Add Team
+          </Button>
+        </div>
+
+        {teamsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading teams...
+          </div>
+        ) : teamList.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Users className="h-8 w-8 text-muted-foreground mx-auto mb-3 opacity-50" />
+              <p className="text-sm text-muted-foreground">No teams yet — click &quot;Add Team&quot; to create one.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {teamList.map(([id, team]) => (
+              <TeamCard
+                key={id}
+                id={id}
+                team={team}
+                blueprints={bpList}
+                onEdit={() => setTeamModal({ teamId: id, team })}
+                onDelete={() => handleTeamDelete(id)}
+                deleting={deletingTeam === id}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── How it works ── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">How Team Collaboration Works</CardTitle>
@@ -178,194 +222,53 @@ export default function TeamsPage() {
           </div>
           <div className="flex items-start gap-3">
             <div className="flex h-6 w-6 items-center justify-center bg-primary/10 text-primary text-xs font-bold shrink-0">3</div>
-            <p>Teammates process in parallel and can mention each other for further collaboration.</p>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="flex h-6 w-6 items-center justify-center bg-primary/10 text-primary text-xs font-bold shrink-0">4</div>
-            <p>When all branches resolve, responses are aggregated and sent back.</p>
+            <p>Each agent&apos;s effective prompt is assembled from project context → team context → agent identity.</p>
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Blueprint Editor Modal ── */}
+      <Dialog open={!!bpModal} onOpenChange={(open: boolean) => { if (!open) setBpModal(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{bpModal?.mode === "new" ? "New Blueprint Agent" : "Edit Blueprint Agent"}</DialogTitle>
+          </DialogHeader>
+          {bpModal && (
+            <BlueprintEditor
+              blueprint={bpModal.blueprint}
+              onSaved={handleBpSaved}
+              onCancel={() => setBpModal(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Team Editor Modal ── */}
+      <Dialog open={!!teamModal} onOpenChange={(open: boolean) => { if (!open) setTeamModal(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{teamModal?.team ? `Edit Team: ${teamModal.team.name}` : "New Team"}</DialogTitle>
+          </DialogHeader>
+          {teamModal && (
+            <TeamEditor
+              teamId={teamModal.teamId}
+              initial={teamModal.team}
+              onSaved={handleTeamSaved}
+              onCancel={() => setTeamModal(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function TeamEditor({
-  form, setForm, isNew, saving, error, onSave, onCancel, availableAgents,
-}: {
-  form: FormData;
-  setForm: (f: FormData) => void;
-  isNew: boolean;
-  saving: boolean;
-  error: string;
-  onSave: () => void;
-  onCancel: () => void;
-  availableAgents: Record<string, AgentConfig>;
-}) {
-  const agentIds = Object.keys(availableAgents);
-
-  const toggleAgent = (agentId: string) => {
-    const inTeam = form.agents.includes(agentId);
-    let newAgents: string[];
-    let newLeader = form.leader_agent;
-
-    if (inTeam) {
-      newAgents = form.agents.filter(a => a !== agentId);
-      if (newLeader === agentId) {
-        newLeader = newAgents[0] || "";
-      }
-    } else {
-      newAgents = [...form.agents, agentId];
-      if (!newLeader) newLeader = agentId;
-    }
-
-    setForm({ ...form, agents: newAgents, leader_agent: newLeader });
-  };
-
-  const setLeader = (agentId: string) => {
-    setForm({ ...form, leader_agent: agentId });
-  };
-
-  return (
-    <Card className="border-primary/50">
-      <CardHeader>
-        <CardTitle className="text-sm flex items-center gap-2">
-          {isNew ? <Plus className="h-4 w-4 text-primary" /> : <Pencil className="h-4 w-4 text-primary" />}
-          {isNew ? "New Team" : `Edit @${form.id}`}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Team ID</label>
-            <Input
-              value={form.id}
-              onChange={(e) => setForm({ ...form, id: e.target.value })}
-              placeholder="e.g. backend-team"
-              disabled={!isNew}
-              className="font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Display Name</label>
-            <Input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. Backend Team"
-            />
-          </div>
-        </div>
-
-        {/* Agent Selection */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            Team Members
-            {form.agents.length > 0 && (
-              <span className="ml-2 text-primary">{form.agents.length} selected</span>
-            )}
-          </label>
-          {agentIds.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {agentIds.map(agentId => {
-                const agent = availableAgents[agentId];
-                const selected = form.agents.includes(agentId);
-                const isLeader = form.leader_agent === agentId;
-                return (
-                  <div
-                    key={agentId}
-                    className={`flex items-center justify-between border px-3 py-2 cursor-pointer transition-colors ${
-                      selected
-                        ? isLeader
-                          ? "border-primary bg-primary/10"
-                          : "border-primary/50 bg-primary/5"
-                        : "border-border hover:border-muted-foreground/50"
-                    }`}
-                    onClick={() => toggleAgent(agentId)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Bot className={`h-3.5 w-3.5 shrink-0 ${selected ? "text-primary" : "text-muted-foreground"}`} />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{agent.name}</p>
-                        <p className="text-xs text-muted-foreground">@{agentId}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-2">
-                      {selected && (
-                        <Button
-                          variant={isLeader ? "default" : "ghost"}
-                          size="sm"
-                          className="h-6 text-xs px-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLeader(agentId);
-                          }}
-                        >
-                          <Crown className="h-3 w-3" />
-                          {isLeader ? "Leader" : "Set Leader"}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No agents configured. Create agents first before building a team.
-            </p>
-          )}
-        </div>
-
-        {/* Selected order preview */}
-        {form.agents.length > 0 && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Team Composition</label>
-            <div className="flex items-center gap-2 flex-wrap">
-              {form.agents.map((agentId, i) => {
-                const agent = availableAgents[agentId];
-                const isLeader = agentId === form.leader_agent;
-                return (
-                  <div key={agentId} className="flex items-center gap-2">
-                    {i > 0 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
-                    <Badge
-                      variant={isLeader ? "default" : "outline"}
-                      className="flex items-center gap-1"
-                    >
-                      {isLeader && <Crown className="h-3 w-3" />}
-                      {agent?.name || agentId}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
-
-        <div className="flex items-center gap-2 pt-2">
-          <Button onClick={onSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {isNew ? "Create Team" : "Save Changes"}
-          </Button>
-          <Button variant="ghost" onClick={onCancel} disabled={saving}>
-            <X className="h-4 w-4" />
-            Cancel
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function TeamCard({
-  id, team, agents, onEdit, onDelete, deleting,
+  id, team, blueprints, onEdit, onDelete, deleting,
 }: {
   id: string;
   team: TeamConfig;
-  agents: Record<string, AgentConfig>;
+  blueprints: BlueprintAgent[];
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
@@ -373,34 +276,26 @@ function TeamCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <Card className="transition-colors hover:border-primary/50">
-      <CardHeader>
+    <Card className="transition-colors hover:border-primary/30">
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="text-lg">{team.name}</CardTitle>
-            <CardDescription>@{id}</CardDescription>
+            <CardTitle className="text-base">{team.name}</CardTitle>
+            <CardDescription className="font-mono text-xs">@{id}</CardDescription>
           </div>
           <div className="flex items-center gap-1">
-            <Badge variant="outline">
-              {team.agents.length} agent{team.agents.length !== 1 ? "s" : ""}
+            <Badge variant="outline" className="text-xs">
+              {team.members?.length ?? 0} member{(team.members?.length ?? 0) !== 1 ? "s" : ""}
             </Badge>
             <Button variant="ghost" size="icon" onClick={onEdit} className="h-8 w-8">
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             {confirmDelete ? (
               <div className="flex items-center gap-1">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => { onDelete(); setConfirmDelete(false); }}
-                  disabled={deleting}
-                  className="h-8 text-xs"
-                >
+                <Button variant="destructive" size="sm" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={deleting} className="h-7 text-xs">
                   {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} className="h-8 text-xs">
-                  No
-                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} className="h-7 text-xs">Cancel</Button>
               </div>
             ) : (
               <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(true)} className="h-8 w-8 text-muted-foreground hover:text-destructive">
@@ -410,43 +305,35 @@ function TeamCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 flex-wrap">
-          {team.agents.map((agentId, i) => {
-            const agent = agents[agentId];
-            const isLeader = agentId === team.leader_agent;
+      <CardContent className="space-y-3">
+        {team.working_directory && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <FolderOpen className="h-3.5 w-3.5" />
+            <code className="font-mono">{team.working_directory}</code>
+          </div>
+        )}
+        {team.team_prompt && (
+          <p className="text-xs text-muted-foreground line-clamp-2">{team.team_prompt}</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {(team.members ?? []).map(member => {
+            const bp = blueprints.find(b => b.id === member.agent_id);
+            const isLeader = member.agent_id === team.leader_agent;
             return (
-              <div key={agentId} className="flex items-center gap-2">
-                {i > 0 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                <div
-                  className={`flex items-center gap-2 border px-3 py-2 ${
-                    isLeader ? "border-primary bg-primary/5" : ""
-                  }`}
-                >
-                  <Bot className={`h-3.5 w-3.5 ${isLeader ? "text-primary" : "text-muted-foreground"}`} />
-                  <div>
-                    <p className="text-sm font-medium flex items-center gap-1.5">
-                      {agent?.name || agentId}
-                      {isLeader && (
-                        <Crown className="h-3 w-3 text-primary" />
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      @{agentId}
-                      {agent ? ` / ${agent.provider} / ${agent.model}` : null}
-                    </p>
-                  </div>
-                </div>
+              <div key={member.agent_id} className={`flex items-center gap-1.5 border px-2 py-1.5 rounded text-xs ${isLeader ? "border-primary bg-primary/5" : "border-border"}`}>
+                <Bot className={`h-3 w-3 ${isLeader ? "text-primary" : "text-muted-foreground"}`} />
+                <span className="font-medium">{bp?.name ?? member.agent_id}</span>
+                {isLeader && <Crown className="h-3 w-3 text-primary" />}
+                {member.role_tag && <Badge variant="outline" className="text-xs h-4 px-1">{member.role_tag}</Badge>}
               </div>
             );
           })}
         </div>
-
-        <div className="mt-4 pt-4 border-t">
-          <p className="text-xs text-muted-foreground">
-            Send messages with <code className="bg-muted px-1 py-0.5 font-mono">@{id}</code> prefix to start team collaboration
-          </p>
-        </div>
+        {(team.team_skills ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {team.team_skills!.map(s => <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>)}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

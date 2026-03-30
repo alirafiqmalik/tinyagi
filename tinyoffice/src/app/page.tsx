@@ -155,7 +155,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">
-                        {team.agents.length} agent{team.agents.length !== 1 ? "s" : ""}
+                        {(team.members?.length ?? (team as unknown as {agents?: string[]}).agents?.length ?? 0)} agent{((team.members?.length ?? (team as unknown as {agents?: string[]}).agents?.length ?? 0)) !== 1 ? "s" : ""}
                       </Badge>
                       <Badge variant="secondary">lead: @{team.leader_agent}</Badge>
                     </div>

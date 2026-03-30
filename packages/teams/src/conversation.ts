@@ -1,7 +1,7 @@
 import {
     MessageJobData, AgentConfig, TeamConfig,
     log, emitEvent,
-    findTeamForAgent, insertChatMessage,
+    findTeamForAgent, getTeamMemberIds, insertChatMessage,
     enqueueMessage, streamResponse, genId,
 } from '@tinyagi/core';
 import { convertTagsToReadable, extractTeammateMentions, extractChatRoomMessages } from './routing';
@@ -42,7 +42,7 @@ function resolveTeamContext(
 ): { teamId: string; team: TeamConfig } | null {
     if (isTeamRouted) {
         for (const [tid, t] of Object.entries(teams)) {
-            if (t.leader_agent === agentId && t.agents.includes(agentId)) {
+            if (t.leader_agent === agentId && getTeamMemberIds(t).includes(agentId)) {
                 return { teamId: tid, team: t };
             }
         }
@@ -75,7 +75,7 @@ export async function handleTeamResponse(params: {
         log('INFO', `Chat room broadcasts from @${agentId}: ${chatRoomMsgs.map(m => `#${m.teamId}`).join(', ')}`);
     }
     for (const crMsg of chatRoomMsgs) {
-        postToChatRoom(crMsg.teamId, agentId, crMsg.message, teams[crMsg.teamId].agents, {
+        postToChatRoom(crMsg.teamId, agentId, crMsg.message, getTeamMemberIds(teams[crMsg.teamId]), {
             channel, sender, senderId: data.senderId, messageId,
         });
     }

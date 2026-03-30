@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { jsonrepair } from 'jsonrepair';
-import { Settings, AgentConfig, TeamConfig, MODEL_ALIASES } from './types';
+import { Settings, AgentConfig, TeamConfig, TeamMember, DEFAULT_TEAM_MEMBER_PERMISSIONS, MODEL_ALIASES } from './types';
 
 export const SCRIPT_DIR = path.resolve(__dirname, '../../..');
 export const TINYAGI_HOME = process.env.TINYAGI_HOME
@@ -97,10 +97,73 @@ export function getAgents(settings: Settings): Record<string, AgentConfig> {
 }
 
 /**
+ * Return the path of the shared workspace skills library (legacy).
+ */
+export function getWorkspaceSkillsDir(settings: Settings): string {
+    const workspacePath = settings?.workspace?.path
+        || path.join(require('os').homedir(), 'tinyagi-workspace');
+    return path.join(workspacePath, 'skills');
+}
+
+/**
+ * Return the path of the skills bank directory.
+ */
+export function getSkillsBankDir(): string {
+    return path.join(TINYAGI_HOME, 'skills-bank');
+}
+
+/**
+ * Return the path of the blueprints directory.
+ */
+export function getBlueprintsDir(): string {
+    return path.join(TINYAGI_HOME, 'blueprints');
+}
+
+/**
+ * Migrate legacy team configs (agents: string[]) to new structure (members: TeamMember[]).
+ * Returns a new object if migration was needed, otherwise returns the input as-is.
+ */
+export function migrateTeamConfig(raw: Record<string, unknown>): TeamConfig {
+    // Already new format
+    if (Array.isArray((raw as unknown as TeamConfig).members)) {
+        return raw as unknown as TeamConfig;
+    }
+
+    // Legacy format: agents is string[]
+    const legacyAgents = (raw.agents as string[] | undefined) || [];
+    const members: TeamMember[] = legacyAgents.map((agentId: string) => ({
+        agent_id: agentId,
+        role_tag: '',
+        permissions: { ...DEFAULT_TEAM_MEMBER_PERMISSIONS },
+    }));
+
+    return {
+        name: raw.name as string,
+        team_prompt: undefined,
+        working_directory: undefined,
+        members,
+        leader_agent: (raw.leader_agent as string | undefined) || (legacyAgents[0] ?? ''),
+        team_skills: [],
+    };
+}
+
+/**
  * Get all configured teams.
  */
 export function getTeams(settings: Settings): Record<string, TeamConfig> {
     return settings.teams || {};
+}
+
+/**
+ * Get the list of agent IDs in a team, supporting both:
+ *   - new format: members[].agent_id
+ *   - legacy format: agents[]
+ */
+export function getTeamMemberIds(team: TeamConfig): string[] {
+    if (Array.isArray(team.members)) {
+        return team.members.map(m => m.agent_id);
+    }
+    return ((team as unknown as { agents?: string[] }).agents) || [];
 }
 
 /**

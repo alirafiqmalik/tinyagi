@@ -1,4 +1,4 @@
-import { AgentConfig, TeamConfig, log } from '@tinyagi/core';
+import { AgentConfig, TeamConfig, getTeamMemberIds, log } from '@tinyagi/core';
 
 // ── Bracket-depth tag parser ────────────────────────────────────────────────
 
@@ -119,8 +119,9 @@ export function isTeammate(
         return false;
     }
 
-    if (!team.agents.includes(mentionedId)) {
-        log('WARN', `isTeammate check failed: Agent '${mentionedId}' not in team '${teamId}' (members: ${team.agents.join(', ')})`);
+    const memberIds = getTeamMemberIds(team);
+    if (!memberIds.includes(mentionedId)) {
+        log('WARN', `isTeammate check failed: Agent '${mentionedId}' not in team '${teamId}' (members: ${memberIds.join(', ')})`);
         return false;
     }
 
@@ -187,7 +188,7 @@ export function extractChatRoomMessages(
 
         // Validate team exists and agent is a member
         const team = teams[candidateId];
-        if (team && team.agents.includes(currentAgentId)) {
+        if (team && getTeamMemberIds(team).includes(currentAgentId)) {
             results.push({ teamId: candidateId, message: tag.message });
         }
     }

@@ -4,7 +4,9 @@ import { useState, useCallback, useEffect, use } from "react";
 import { usePolling } from "@/lib/hooks";
 import {
   getAgents,
+  getSessions,
   getAgentSkills,
+  updateAgentSkills,
   getAgentSystemPrompt,
   saveAgentSystemPrompt,
   getAgentMemory,
@@ -12,6 +14,7 @@ import {
   saveAgentHeartbeat,
   type AgentConfig,
   type WorkspaceSkill,
+  type SessionConfig,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +29,8 @@ import {
   MemoryTab,
   HeartbeatTab,
 } from "@/components/agent";
+import { SessionTabBar } from "@/components/agent/session-tab-bar";
+import { PermissionsTab } from "@/components/agent/permissions-tab";
 import {
   Bot,
   Swords,
@@ -34,6 +39,7 @@ import {
   HeartPulse,
   CalendarDays,
   ArrowLeft,
+  Shield,
 } from "lucide-react";
 
 const AGENT_COLORS = [
@@ -50,11 +56,12 @@ function agentColor(id: string): string {
 }
 import Link from "next/link";
 
-type TabId = "chat" | "skills" | "schedule" | "system-prompt" | "memory" | "heartbeat";
+type TabId = "chat" | "skills" | "permissions" | "schedule" | "system-prompt" | "memory" | "heartbeat";
 
 const TABS: { id: TabId; label: string; icon: typeof Swords }[] = [
   { id: "chat", label: "Chat", icon: Bot },
   { id: "skills", label: "Skills", icon: Swords },
+  { id: "permissions", label: "Permissions", icon: Shield },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "system-prompt", label: "System Prompt", icon: FileText },
   { id: "memory", label: "Memory", icon: Brain },
@@ -71,6 +78,7 @@ export default function AgentConfigPage({
     getAgents,
     0,
   );
+  const { data: sessions } = usePolling<SessionConfig[]>(getSessions, 5000);
 
   const [activeTab, setActiveTab] = useState<TabId>("chat");
   const [spSaving, setSpSaving] = useState(false);
@@ -80,6 +88,7 @@ export default function AgentConfigPage({
 
   // Workspace data
   const [workspaceSkills, setWorkspaceSkills] = useState<WorkspaceSkill[]>([]);
+  const [assignedSkillIds, setAssignedSkillIds] = useState<string[]>([]);
   const [systemPromptContent, setSystemPromptContent] = useState<string>("");
   const [systemPromptPath, setSystemPromptPath] = useState<string>("");
   const [systemPromptLoaded, setSystemPromptLoaded] = useState(false);
@@ -96,14 +105,23 @@ export default function AgentConfigPage({
   const [heartbeatInterval, setHeartbeatInterval] = useState("300");
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(true);
 
-  const agent = agents?.[agentId];
+  // Resolve agent from persistent agents or sessions
+  const sessionAgent = sessions?.find((s) => s.id === agentId);
+  const agent: AgentConfig | undefined = agents?.[agentId] || (sessionAgent ? {
+    name: sessionAgent.name,
+    provider: sessionAgent.provider,
+    model: sessionAgent.model,
+    working_directory: sessionAgent.working_directory,
+    permissions: sessionAgent.permissions,
+    skills: sessionAgent.skills,
+  } : undefined);
 
   // Load workspace data when agent is available
   useEffect(() => {
     if (!agent) return;
 
     getAgentSkills(agentId)
-      .then(setWorkspaceSkills)
+      .then((data) => { setWorkspaceSkills(data.available); setAssignedSkillIds(data.assigned); })
       .catch(() => {});
 
     getAgentSystemPrompt(agentId)
@@ -135,12 +153,22 @@ export default function AgentConfigPage({
       .catch(() => setHeartbeatLoaded(true));
   }, [agent, agentId]);
 
-  // Convert workspace skills to SkillEntry format for constellation
-  const constellationSkills: SkillEntry[] = workspaceSkills.map((s) => ({
-    id: s.id,
-    name: s.name,
-    description: s.description,
-  }));
+  // Only show assigned skills in the constellation
+  const constellationSkills: SkillEntry[] = workspaceSkills
+    .filter((s) => assignedSkillIds.includes(s.id))
+    .map((s) => ({ id: s.id, name: s.name, description: s.description }));
+
+  const handleToggleSkill = useCallback(async (skillId: string) => {
+    const next = assignedSkillIds.includes(skillId)
+      ? assignedSkillIds.filter((id) => id !== skillId)
+      : [...assignedSkillIds, skillId];
+    setAssignedSkillIds(next);
+    try {
+      await updateAgentSkills(agentId, next);
+    } catch {
+      setAssignedSkillIds(assignedSkillIds); // revert on error
+    }
+  }, [agentId, assignedSkillIds]);
 
   const handleSaveSystemPrompt = useCallback(async () => {
     if (!agent) return;
@@ -176,7 +204,7 @@ export default function AgentConfigPage({
 
   const refreshWorkspaceData = useCallback(() => {
     getAgentSkills(agentId)
-      .then(setWorkspaceSkills)
+      .then((data) => { setWorkspaceSkills(data.available); setAssignedSkillIds(data.assigned); })
       .catch(() => {});
     getAgentMemory(agentId)
       .then((data) => {
@@ -222,6 +250,9 @@ export default function AgentConfigPage({
 
   return (
     <div className="flex flex-col h-screen">
+      {/* Session tab bar */}
+      <SessionTabBar activeId={agentId} />
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-card">
         <div className="flex items-center gap-4">
@@ -293,11 +324,17 @@ export default function AgentConfigPage({
         {activeTab === "skills" && (
           <SkillsTab
             skills={constellationSkills}
+            allSkills={workspaceSkills}
+            assignedSkillIds={assignedSkillIds}
+            onToggleSkill={handleToggleSkill}
             agentName={agent.name}
             agentInitials={agent.name.slice(0, 2).toUpperCase()}
             onRefresh={refreshWorkspaceData}
             agentId={agentId}
           />
+        )}
+        {activeTab === "permissions" && (
+          <PermissionsTab agentId={agentId} />
         )}
         {activeTab === "schedule" && (
           <ScheduleTab agentId={agentId} />

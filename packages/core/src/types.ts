@@ -1,9 +1,9 @@
 export interface CustomProvider {
     name: string;
-    harness: 'claude' | 'codex';  // which CLI to invoke
+    harness: 'claude' | 'codex' | 'native-openai';  // which CLI or SDK to use
     base_url: string;
     api_key: string;
-    model?: string;               // model name to pass to the CLI
+    model?: string;               // model name to pass to the CLI / API
 }
 
 export interface AgentConfig {
@@ -17,12 +17,87 @@ export interface AgentConfig {
         enabled?: boolean;
         interval?: number;
     };
+    skills?: string[];  // skill IDs to enable; omit or null = all available skills
+    permissions?: AgentPermissions;
 }
+
+// ── Blueprint Agent (team template, lives in ~/.tinyagi/blueprints/<id>/) ──
+
+export interface BlueprintAgent {
+    id: string;
+    name: string;
+    provider: string;
+    model: string;
+    skills?: string[];
+    created_at: number;
+    updated_at: number;
+    copied_from?: string;   // Task Agent ID if cloned
+}
+
+// ── Team Member (blueprint + role + permissions inside a team) ──
+
+export interface TeamMemberPermissions {
+    filesystem: 'read' | 'write' | 'none';
+    browser: boolean;
+    network: boolean;
+    skills: string[] | 'all' | 'none';
+    sandbox_mode: 'full' | 'restricted';
+}
+
+export interface TeamMember {
+    agent_id: string;              // BlueprintAgent.id
+    role_tag: string;
+    role_prompt?: string;
+    permissions: TeamMemberPermissions;
+}
+
+export const DEFAULT_TEAM_MEMBER_PERMISSIONS: TeamMemberPermissions = {
+    filesystem: 'write',
+    browser: false,
+    network: true,
+    skills: 'all',
+    sandbox_mode: 'full',
+};
+
+// ── Team (redesigned) ──
 
 export interface TeamConfig {
     name: string;
-    agents: string[];
+    team_prompt?: string;
+    working_directory?: string;
+    members: TeamMember[];          // was: agents: string[]
     leader_agent: string;
+    team_skills?: string[];
+}
+
+// ── Project Assignment Types ──
+
+export interface ProjectTeam {
+    team_id: string;
+    role_tag: string;
+    role_description?: string;
+}
+
+export interface ProjectAgent {
+    agent_id: string;
+    role_tag?: string;
+    role_description?: string;
+}
+
+// ── Project (redesigned) ──
+
+export interface ProjectConfig {
+    id: string;
+    name: string;
+    description: string;
+    context_prompt?: string;
+    status: 'active' | 'archived';
+    skills?: string[];
+    memory_enabled?: boolean;
+    assigned_teams: ProjectTeam[];
+    assigned_agents: ProjectAgent[];
+    created_at: number;
+    updated_at: number;
 }
 
 export interface Settings {
@@ -57,6 +132,7 @@ export interface Settings {
     monitoring?: {
         heartbeat_interval?: number;
     };
+    directories?: string[];  // known/connected working directories
 }
 
 export interface MessageData {
@@ -80,6 +156,69 @@ export interface ResponseData {
     agent?: string; // which agent handled this
     files?: string[];
     metadata?: Record<string, unknown>;
+}
+
+// --- Model Registry Types ---
+
+export interface ModelCapabilities {
+    context_window: number;
+    max_output_tokens?: number;
+    supports_tools: boolean;
+    supports_vision: boolean;
+    supports_streaming: boolean;
+}
+
+export interface ModelDefinition {
+    id: string;                   // e.g. "claude-sonnet-4-6"
+    vendor: string;               // e.g. "anthropic", "openai", "local"
+    display_name: string;         // e.g. "Claude Sonnet 4.6"
+    harness: 'claude' | 'codex' | 'opencode' | 'native-openai' | 'claude-code';
+    aliases: string[];            // e.g. ["sonnet"]
+    is_code_agent?: boolean;      // true for claude-code type
+    capabilities: ModelCapabilities;
+    // Extended metadata (from custom provider discovery)
+    description?: string;
+    tier?: string;                // "fast", "code", "general", "reasoning", "embed", "cloud"
+    vram_gb?: number;
+    installed?: boolean;
+    available?: boolean;
+    category?: 'local_installed' | 'local_recommended' | 'cloud';
+    pull_cmd?: string;            // for recommended models that can be pulled
+}
+
+// --- Agent Permissions ---
+
+export interface AgentPermissions {
+    filesystem: 'read' | 'write' | 'none';
+    browser: boolean;
+    network: boolean;
+    skills: string[] | 'all' | 'none';
+    sandbox_mode: 'full' | 'restricted';
+    allowed_directories: string[];
+}
+
+export const DEFAULT_PERMISSIONS: AgentPermissions = {
+    filesystem: 'write',
+    browser: false,
+    network: true,
+    skills: 'all',
+    sandbox_mode: 'full',
+    allowed_directories: [],
+};
+
+// --- Session (agent tab) ---
+
+export interface SessionConfig {
+    id: string;
+    name: string;
+    provider: string;
+    model: string;
+    working_directory: string;
+    permissions: AgentPermissions;
+    skills?: string[];
+    system_prompt?: string;
+    created_at: number;
+    last_active_at: number;
 }
 
 // Shorthand model aliases — everything else passes through as-is to the CLI.

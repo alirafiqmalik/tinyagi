@@ -27,6 +27,12 @@ import chatroomRoutes from './routes/chatroom';
 import agentMessagesRoutes from './routes/agent-messages';
 import servicesRoutes from './routes/services';
 import schedulesRoutes from './routes/schedules';
+import usageRoutes from './routes/usage';
+import modelsRoutes from './routes/models';
+import sessionsRoutes from './routes/sessions';
+import directoriesRoutes from './routes/directories';
+import blueprintsRoutes from './routes/blueprints';
+import skillsBankRoutes from './routes/skills-bank';
 
 const API_PORT = parseInt(process.env.TINYAGI_API_PORT || '3777', 10);
 
@@ -55,6 +61,12 @@ export function startApiServer(): http.Server {
     app.route('/', agentMessagesRoutes);
     app.route('/', servicesRoutes);
     app.route('/', schedulesRoutes);
+    app.route('/', usageRoutes);
+    app.route('/', modelsRoutes);
+    app.route('/', sessionsRoutes);
+    app.route('/', directoriesRoutes);
+    app.route('/', blueprintsRoutes);
+    app.route('/', skillsBankRoutes);
 
     // SSE endpoint — needs raw Node.js response for streaming
     app.get('/api/events/stream', (c) => {

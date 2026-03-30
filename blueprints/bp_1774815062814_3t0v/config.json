@@ -1,0 +1,9 @@
+{
+  "name": "Planner",
+  "provider": "custom:local-llm-native",
+  "model": "qwen3:4b-thinking",
+  "skills": [],
+  "id": "bp_1774815062814_3t0v",
+  "created_at": 1774815062815,
+  "updated_at": 1774815062828
+}
