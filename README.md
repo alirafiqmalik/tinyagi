@@ -295,6 +295,8 @@ tinyagi provider openai --auth-token sk-...
 
 Tokens are saved in `settings.json` under `models.<provider>.auth_token` and automatically exported as `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` when invoking CLIs.
 
+**Public repositories:** Do not commit real `settings.json`. The repo includes `settings.example.json` as a template; copy it to `settings.json` locally (gitignored). Prefer `tinyagi provider …` for CLI auth or keep secrets in `.env` when using tooling that merges env into settings.
+
 **API endpoints:**
 
 ```

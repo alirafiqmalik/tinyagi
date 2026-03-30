@@ -9,6 +9,9 @@ dist/
 # TinyAGI runtime files
 .tinyagi
 
+# Local config (secrets synced from .env via sync-env.sh — never commit)
+/settings.json
+
 .wwebjs_cache
 *.log
 

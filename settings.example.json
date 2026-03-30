@@ -1,0 +1,58 @@
+{
+  "workspace": {
+    "path": "/path/to/tinyagi/workspace",
+    "name": "tinyagi-workspace"
+  },
+  "channels": {
+    "enabled": [
+      "telegram"
+    ],
+    "telegram": {
+      "bot_token": ""
+    }
+  },
+  "models": {
+    "provider": "custom:local-llm-native",
+    "anthropic": {
+      "model": "claude-sonnet-4-6",
+      "auth_token": ""
+    }
+  },
+  "agents": {
+    "default": {
+      "name": "Gemma 3 (local)",
+      "provider": "custom:local-llm-native",
+      "model": "gemma3:4b",
+      "working_directory": "default",
+      "skills": [
+        "memory",
+        "schedule",
+        "send-user-message",
+        "tinyagi-admin",
+        "agent-browser",
+        "imagegen",
+        "tasks",
+        "skill-creator",
+        "usage-monitor"
+      ],
+      "heartbeat": {
+        "enabled": true,
+        "interval": 600
+      }
+    }
+  },
+  "custom_providers": {
+    "local-llm-native": {
+      "name": "Local LLM (Native OpenAI SDK)",
+      "harness": "native-openai",
+      "base_url": "http://localhost:8000/v1",
+      "api_key": "local",
+      "model": "gemma3:4b"
+    }
+  },
+  "monitoring": {
+    "heartbeat_interval": 3600
+  },
+  "teams": {},
+  "directories": []
+}

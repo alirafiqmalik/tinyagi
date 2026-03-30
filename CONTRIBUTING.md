@@ -32,6 +32,11 @@ npm run build
 - `.agents/skills/` - Agent skill definitions
 - `docs/` - Documentation
 
+## Secrets and public repositories
+
+- Never commit `settings.json` with real tokens or API keys. It is gitignored; use `settings.example.json` as a template.
+- If secrets were pushed to GitHub, **revoke** them at the provider, then remove `settings.json` from **all history** with `scripts/git-purge-settings-history.sh` (requires [git-filter-repo](https://github.com/newren/git-filter-repo)), and force-push. Coordinate with anyone who has cloned the repo.
+
 ## Submitting Changes
 
 1. Fork the repo and create a branch from `main`
